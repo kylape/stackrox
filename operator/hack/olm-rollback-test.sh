@@ -16,22 +16,43 @@ function install_olm() {
 }
 
 function init() {
-  install_olm
-
   ns_list=$(kubectl get ns --no-headers)
-
-  log "Installing pull secrets in namespaces"
-  create_pull_secret "${operator_ns}" "quay.io"
 
   if [ "$(echo \"$ns_list\" | grep ${central_ns})" == "" ]; then
     kubectl create ns ${central_ns}
   fi
 
-  create_pull_secret "${central_ns}" "quay.io"
+  if [[ "$openshift" == true ]]; then
+    if [ "$(echo \"$ns_list\" | grep \"^${operator_ns}$\")" == "" ]; then
+      kubectl create ns ${operator_ns}
+    fi
+
+    cat << END | kubectl -n ${operator_ns} apply -f -
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: global-operators
+spec:
+  upgradeStrategy: Default
+END
+  else
+    install_olm
+
+    log "Installing pull secrets in namespaces"
+    create_pull_secret "${operator_ns}" "quay.io"
+    create_pull_secret "${central_ns}" "quay.io"
+  fi
 }
 
 function install_cert_manager() {
   log "Installing cert manager"
+  if [[ "$openshift" == true ]]; then
+    source_name="community-operators"
+    source_ns="openshift-marketplace"
+  else
+    source_name="operatorhubio-catalog"
+    source_ns="olm"
+  fi
   cat <<EOF | kubectl apply -n ${operator_ns} -f -
 ---
 apiVersion: operators.coreos.com/v1alpha1
@@ -41,8 +62,8 @@ metadata:
 spec:
   channel: stable
   name: cert-manager
-  source: operatorhubio-catalog
-  sourceNamespace: olm
+  source: ${source_name}
+  sourceNamespace: ${source_ns}
   installPlanApproval: Automatic
 EOF
 }
@@ -73,7 +94,19 @@ EOF
 
 function install_acs_operator {
   log "Installing ACS operator"
-  version=$1
+  version="$1"
+
+  if [[ "$openshift" == true ]]; then
+    source_ns="openshift-marketplace"
+    channel="$(version_to_channel $version)"
+    # source_name="redhat-operators"
+    source_name="rhacs-downstream-release-test"
+  else
+    source_ns="${operator_ns}"
+    channel="latest"
+    source_name="rhacs"
+  fi
+
   cat <<EOF | kubectl apply -n ${operator_ns} -f -
 ---
 apiVersion: operators.coreos.com/v1alpha1
@@ -81,10 +114,10 @@ kind: Subscription
 metadata:
   name: rhacs
 spec:
-  channel: latest
+  channel: ${channel}
   name: rhacs-operator
-  source: rhacs
-  sourceNamespace: ${operator_ns}
+  source: ${source_name}
+  sourceNamespace: ${source_ns}
   installPlanApproval: Automatic  # Choosing automatic to emulate how most customers configure subscriptions (afiact)
   config:
     env:
@@ -95,7 +128,20 @@ spec:
       value: "127.1.2.3/8"
 EOF
 
-  nurse_deployment_until_available "${operator_ns}" "${version}"
+  if [[ "$openshift" == true ]]; then
+    log "Waiting for the ACS CSV to finish installing."
+    "${KUTTL}" assert --timeout 300 --namespace "${operator_ns}" /dev/stdin <<-END
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  labels:
+    operators.coreos.com/rhacs-operator.operators: ""
+status:
+  phase: Succeeded
+END
+  else
+    nurse_deployment_until_available "${operator_ns}" "${version}"
+  fi
 }
 
 function install_central() {
@@ -155,6 +201,53 @@ function test_central_api() {
   fi
 }
 
+function update_acs_operator() {
+  if [[ "$openshift" == true ]]; then
+    update_acs_subscription $@
+  else
+    update_acs_catalog_source $@
+  fi
+}
+
+function version_to_channel() {
+  echo "rhacs-$(echo $1 | sed -E 's/([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+)/\1.\2/')"
+}
+
+function update_acs_subscription() {
+  channel="$1"
+
+  if [[ "$channel" != "rhacs-"* ]]; then
+    channel="$(version_to_channel $channel)"
+  fi
+
+  kubectl -n ${operator_ns} patch subscription/rhacs --type merge -p '{"spec":{"channel":"'"${channel}"'"}}'
+
+  sleep 30
+
+  "${KUTTL}" assert --timeout 300 --namespace ${operator_ns} /dev/stdin <<-END
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: rhacs
+status:
+  state: AtLatestKnown
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    operators.coreos.com/rhacs-operator.operators: ""
+status:
+  conditions:
+  - type: Available
+    status: "True"
+  - type: Progressing
+    status: "True"
+---
+END
+}
+
 function update_acs_catalog_source() {
   version=$1
 
@@ -206,9 +299,8 @@ function patch_db_rollback_version() {
 }
 
 function remove_acs_operator() {
-  version=$1
   log "Removing ACS CSV and Subscription"
-  kubectl -n ${operator_ns} delete csv rhacs-operator.v${version}
+  kubectl -n ${operator_ns} delete csv -l operators.coreos.com/rhacs-operator.operators
   kubectl -n ${operator_ns} delete subscription rhacs
 }
 
@@ -302,29 +394,37 @@ function main() {
       exit 1
   fi
 
-  if [[ "$openshift" == true ]]; then
-    echo "Openshift option is not available yet"
-    exit 1
-  fi
+  # init
+  # install_cert_manager
 
-  init
-  install_cert_manager
-  install_acs_catalog_source ${old_version}
-  install_acs_operator ${old_version}
+  # if [[ "$openshift" != true ]]; then
+  #   install_acs_catalog_source ${old_version}
+  # fi
+
+  # install_acs_operator ${old_version}
   install_central
   test_central_api
-  update_acs_catalog_source ${new_version}
-  nurse_olm_upgrade "${old_version}" "${new_version}"
+  update_acs_operator ${new_version}
+  exit 0
+
+  if [[ "$openshift" != true ]]; then
+    nurse_olm_upgrade "${old_version}" "${new_version}"
+  fi
+
   test_central_api
 
   # rollback
   previous_db_version="$(get_previous_db_version)"
   log "Previous version: ${previous_db_version}"
-  remove_acs_operator "${new_version}"
-  update_acs_catalog_source "${previous_db_version}"
+  remove_acs_operator
+
+  if [[ "$openshift" != true ]]; then
+    update_acs_catalog_source "${previous_db_version}"
+  fi
+
   install_acs_operator "${previous_db_version}"
   ensure_central_at_version "${previous_db_version}"
-  remove_acs_operator "${previous_db_version}"
+  remove_acs_operator
   patch_db_rollback_version "${previous_db_version}"
   test_central_api
   install_acs_operator "${previous_db_version}"
