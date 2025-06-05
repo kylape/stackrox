@@ -17,6 +17,7 @@ RUN mkdir -p /stackrox/bin && \
     ln -s /stackrox/migrator /stackrox/bin/migrator && \
     ln -s /stackrox/self-checks /usr/local/bin/self-checks
 COPY ./ui /ui
+COPY ./ui/apps/platform/node_modules /ui/apps/platform/node_modules
 RUN mkdir -p /ui/openapi; rm -rf /ui/build; ls -lah /ui/apps/platform
 COPY ./image/rhel/docs/api/v1/openapi.json /ui/openapi/v1.json
 COPY ./image/rhel/docs/api/v2/openapi.json /ui/openapi/v2.json
