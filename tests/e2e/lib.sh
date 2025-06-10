@@ -47,6 +47,8 @@ deploy_stackrox() {
     local central_namespace=${2:-stackrox}
     local sensor_namespace=${3:-stackrox}
 
+    info "About to deploy StackRox (Central + Sensor)."
+
     setup_podsecuritypolicies_config
 
     deploy_stackrox_operator
@@ -55,7 +57,6 @@ deploy_stackrox() {
 
     export_central_basic_auth_creds
     wait_for_api "${central_namespace}"
-    export_central_cert "${central_namespace}"
 
     setup_client_TLS_certs "${tls_client_certs}"
     record_build_info "${central_namespace}"
@@ -72,6 +73,10 @@ deploy_stackrox() {
     wait_for_collectors_to_be_operational "${sensor_namespace}"
 
     pause_stackrox_operator_reconcile "${central_namespace}" "${sensor_namespace}"
+
+    if kubectl -n "${central_namespace}" get deployment scanner-v4-indexer >/dev/null 2>&1; then
+        wait_for_scanner_V4 "${central_namespace}"
+    fi
 
     touch "${STATE_DEPLOYED}"
 }
@@ -182,8 +187,9 @@ export_test_environment() {
     ci_export ROX_CLUSTERS_PAGE_MIGRATION_UI "${ROX_CLUSTERS_PAGE_MIGRATION_UI:-false}"
     ci_export ROX_EXTERNAL_IPS "${ROX_EXTERNAL_IPS:-true}"
     ci_export ROX_NETWORK_GRAPH_EXTERNAL_IPS "${ROX_NETWORK_GRAPH_EXTERNAL_IPS:-false}"
-    ci_export ROX_FLATTEN_CVE_DATA "${ROX_FLATTEN_CVE_DATA:-false}"
+    ci_export ROX_FLATTEN_CVE_DATA "${ROX_FLATTEN_CVE_DATA:-true}"
     ci_export ROX_VULNERABILITY_ON_DEMAND_REPORTS "${ROX_VULNERABILITY_ON_DEMAND_REPORTS:-true}"
+    ci_export ROX_CUSTOMIZABLE_PLATFORM_COMPONENTS "${ROX_CUSTOMIZABLE_PLATFORM_COMPONENTS:-true}"
 
     if is_in_PR_context && pr_has_label ci-fail-fast; then
         ci_export FAIL_FAST "true"
@@ -326,16 +332,22 @@ deploy_central_via_operator() {
     customize_envVars+=$'\n      - name: ROX_SBOM_GENERATION'
     customize_envVars+=$'\n        value: "true"'
     customize_envVars+=$'\n      - name: ROX_FLATTEN_CVE_DATA'
-    customize_envVars+=$'\n        value: "false"'
+    customize_envVars+=$'\n        value: "true"'
     customize_envVars+=$'\n      - name: ROX_VULNERABILITY_ON_DEMAND_REPORTS'
     customize_envVars+=$'\n        value: "true"'
+    customize_envVars+=$'\n      - name: ROX_CUSTOMIZABLE_PLATFORM_COMPONENTS'
+    customize_envVars+=$'\n        value: "true"'
+
+    local scannerV4ScannerComponent="Default"
+    case "${ROX_SCANNER_V4:-}" in
+        true)  scannerV4ScannerComponent="Enabled"  ;;
+        false) scannerV4ScannerComponent="Disabled" ;;
+    esac
 
     CENTRAL_YAML_PATH="tests/e2e/yaml/central-cr.envsubst.yaml"
     # Different yaml for midstream images
     if [[ "${USE_MIDSTREAM_IMAGES}" == "true" ]]; then
         CENTRAL_YAML_PATH="tests/e2e/yaml/central-cr-midstream.envsubst.yaml"
-    elif [[ "${ROX_SCANNER_V4:-false}" == "true" ]]; then
-        CENTRAL_YAML_PATH="tests/e2e/yaml/central-cr-with-scanner-v4.envsubst.yaml"
     fi
     env - \
       centralAdminPasswordBase64="$centralAdminPasswordBase64" \
@@ -346,6 +358,7 @@ deploy_central_via_operator() {
       central_exposure_loadBalancer_enabled="$central_exposure_loadBalancer_enabled" \
       central_exposure_route_enabled="$central_exposure_route_enabled" \
       customize_envVars="$customize_envVars" \
+      scannerV4ScannerComponent="$scannerV4ScannerComponent" \
     "${envsubst}" \
       < "${CENTRAL_YAML_PATH}" | kubectl apply -n "${central_namespace}" -f -
 
@@ -501,25 +514,6 @@ export_central_basic_auth_creds() {
     ci_export "ROX_ADMIN_PASSWORD" "$ROX_ADMIN_PASSWORD"
 }
 
-export_central_cert() {
-    # Export the internal central TLS certificate for roxctl to access central
-    # through TLS-passthrough router by specifying the TLS server name.
-    ci_export ROX_SERVER_NAME "central.${CENTRAL_NAMESPACE:-stackrox}"
-
-    require_environment "API_ENDPOINT"
-    require_environment "ROX_ADMIN_PASSWORD"
-
-    local central_cert
-    central_cert="$(mktemp -d)/central_cert.pem"
-    info "Storing central certificate in ${central_cert} for ${API_ENDPOINT}"
-
-    roxctl -e "$API_ENDPOINT" \
-        central cert --insecure-skip-tls-verify 1>"$central_cert"
-
-    ci_export ROX_CA_CERT_FILE "$central_cert"
-    openssl x509 -in "${ROX_CA_CERT_FILE}" -subject -issuer -ext subjectAltName -noout
-}
-
 deploy_optional_e2e_components() {
     info "Installing optional components used in E2E tests"
 
@@ -557,8 +551,7 @@ setup_client_CA_auth_provider() {
     require_environment "ROX_ADMIN_PASSWORD"
     require_environment "CLIENT_CA_PATH"
 
-    export_central_cert
-    roxctl -e "$API_ENDPOINT" \
+    roxctl -e "$API_ENDPOINT" --ca "" --insecure-skip-tls-verify \
         central userpki create test-userpki -r Analyst -c "$CLIENT_CA_PATH"
 }
 
@@ -574,8 +567,7 @@ setup_generated_certs_for_test() {
     require_environment "API_ENDPOINT"
     require_environment "ROX_ADMIN_PASSWORD"
 
-    export_central_cert
-    roxctl -e "$API_ENDPOINT" \
+    roxctl -e "$API_ENDPOINT" --ca "" --insecure-skip-tls-verify \
         sensor generate-certs remote --output-dir "$dir"
     [[ -f "$dir"/cluster-remote-tls.yaml ]]
     # Use the certs in future steps that will use client auth.
@@ -1095,6 +1087,61 @@ remove_compliance_operator_resources() {
     fi
 }
 
+
+wait_for_ready_deployment() {
+    local namespace="$1"
+    local deployment_name="$2"
+    local max_seconds="$3"
+
+    info "Waiting for deployment ${deployment_name} to be ready in namespace ${namespace}"
+
+    start_time="$(date '+%s')"
+    while true; do
+        deployment_json="$(kubectl -n "${namespace}" get "deploy/${deployment_name}" -o json)"
+        replicas="$(jq '.status.replicas' <<<"$deployment_json")"
+        ready_replicas="$(jq '.status.readyReplicas' <<<"$deployment_json")"
+        curr_time="$(date '+%s')"
+        elapsed_seconds=$(( curr_time - start_time ))
+
+        # Ready case. First we need to make sure that "$replicas" is an integer and not
+        # something like "null", which would cause an execution error while
+        # evaluating [[ "$replicas" -gt 0 ]].
+        if [[ "$replicas" =~ ^[0-9]+$ && "$replicas" -gt 0 && "$replicas" == "$ready_replicas" ]]; then
+            sleep 10
+            break
+        fi
+
+        # Timeout case
+        if (( elapsed_seconds > max_seconds )); then
+            kubectl -n "${namespace}" get pod -o wide
+            kubectl -n "${namespace}" get deploy -o wide
+            die "wait_for_ready_deployment() timeout after $max_seconds seconds."
+        fi
+
+        # Otherwise report and retry
+        info "Still waiting (${elapsed_seconds}s/${max_seconds}s)..."
+        sleep 5
+    done
+
+    info "Deployment ${deployment_name} is ready in namespace ${namespace}."
+}
+
+# shellcheck disable=SC2120
+wait_for_scanner_V4() {
+    local namespace="$1"
+    local max_seconds=${MAX_WAIT_SECONDS:-300}
+    info "Waiting for Scanner V4 to become ready..."
+    if [[ "${ORCHESTRATOR_FLAVOR:-}" == "openshift" ]]; then
+        # OCP Interop tests are run on minimal instances and will take longer
+        # Allow override with MAX_WAIT_SECONDS
+        max_seconds=${MAX_WAIT_SECONDS:-600}
+        info "Waiting ${max_seconds}s (increased for openshift-ci provisioned clusters) for central api and $(( max_seconds * 6 )) for ingress..."
+    fi
+
+    wait_for_ready_deployment "$namespace" "scanner-v4-indexer" "$max_seconds"
+    wait_for_ready_deployment "$namespace" "scanner-v4-matcher" "$max_seconds"
+}
+
 # shellcheck disable=SC2120
 wait_for_api() {
     local central_namespace=${1:-stackrox}
@@ -1110,31 +1157,7 @@ wait_for_api() {
     fi
     max_ingress_seconds=$(( max_seconds * 6 ))
 
-    while true; do
-        central_json="$(kubectl -n "${central_namespace}" get deploy/central -o json)"
-        replicas="$(jq '.status.replicas' <<<"$central_json")"
-        ready_replicas="$(jq '.status.readyReplicas' <<<"$central_json")"
-        curr_time="$(date '+%s')"
-        elapsed_seconds=$(( curr_time - start_time ))
-
-        # Ready case
-        if [[ "$replicas" == 1 && "$ready_replicas" == 1 ]]; then
-            sleep 30
-            break
-        fi
-
-        # Timeout case
-        if (( elapsed_seconds > max_seconds )); then
-            kubectl -n "${central_namespace}" get pod -o wide
-            kubectl -n "${central_namespace}" get deploy -o wide
-            die "wait_for_api() timeout after $max_seconds seconds."
-        fi
-
-        # Otherwise report and retry
-        info "Still waiting (${elapsed_seconds}s/${max_seconds}s)..."
-        sleep 5
-    done
-
+    wait_for_ready_deployment "$central_namespace" "central" "$max_seconds"
     info "Central deployment is ready in namespace ${central_namespace}."
     info "Waiting for Central API endpoint"
 
@@ -1279,8 +1302,8 @@ restore_4_1_postgres_backup() {
     require_environment "ROX_ADMIN_PASSWORD"
 
     gsutil cp gs://stackrox-ci-upgrade-test-fixtures/upgrade-test-dbs/postgres_db_4_1.sql.zip .
-    export_central_cert
-    roxctl -e "$API_ENDPOINT" \
+
+    roxctl -e "$API_ENDPOINT" --ca "" --insecure-skip-tls-verify \
         central db restore --timeout 5m postgres_db_4_1.sql.zip
 }
 
@@ -1307,18 +1330,17 @@ db_backup_and_restore_test() {
 
     # Ensure central is ready for requests after any previous tests
     wait_for_api "${central_namespace}"
-    export_central_cert "${central_namespace}"
 
     info "Backing up to ${output_dir}"
     mkdir -p "$output_dir"
-    roxctl -e "${API_ENDPOINT}" central backup --output "$output_dir" || touch DB_TEST_FAIL
+    roxctl --ca="" --insecure-skip-tls-verify -e "${API_ENDPOINT}" central backup --output "$output_dir" || touch DB_TEST_FAIL
 
     info "Updating public config"
     update_public_config
 
     if [[ ! -e DB_TEST_FAIL ]]; then
         info "Restoring from ${output_dir}/postgres_db_*"
-        roxctl -e "${API_ENDPOINT}" central db restore "$output_dir"/postgres_db_* || touch DB_TEST_FAIL
+        roxctl --ca="" --insecure-skip-tls-verify -e "${API_ENDPOINT}" central db restore "$output_dir"/postgres_db_* || touch DB_TEST_FAIL
     fi
 
     wait_for_api "${central_namespace}"
@@ -1521,6 +1543,34 @@ wait_for_object_to_appear() {
             return 1
         fi
         info "Waiting for $namespace $object to appear"
+        sleep "$waitInterval"
+    done
+
+    return 0
+}
+
+wait_for_log_line() {
+    if [[ "$#" -lt 2 ]]; then
+        die "missing args. usage: wait_for_log_line <namespace> <object> <container> <log_line> [<delay>]"
+    fi
+
+    local namespace="$1"
+    local object="$2"
+    local container="$3"
+    local log_line="$4"
+    local delay="${5:-300}"
+    local waitInterval=20
+    local tries=$(( delay / waitInterval ))
+    local count=0
+    until kubectl logs -n "$namespace" "$object" -c "${container}" | grep "${log_line}"; do
+        count=$((count + 1))
+        if [[ $count -ge "$tries" ]]; then
+            info "$namespace $object did not log ${log_line} after $count tries"
+            echo "Waiting for $object log in ns $namespace timed out." > "${QA_DEPLOY_WAIT_INFO}" || true
+            kubectl -n "$namespace" get "$object"
+            return 1
+        fi
+        info "Waiting for $namespace $object to log ${log_line}"
         sleep "$waitInterval"
     done
 

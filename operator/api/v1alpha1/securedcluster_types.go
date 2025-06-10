@@ -71,7 +71,6 @@ type SecuredClusterSpec struct {
 	Scanner *LocalScannerComponentSpec `json:"scanner,omitempty"`
 
 	// Settings for the Scanner V4 components, which can run in addition to the previously existing Scanner components
-	//+kubebuilder:default={"scannerComponent":"Default"}
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,order=8,displayName="Scanner V4 Component Settings"
 	ScannerV4 *LocalScannerV4ComponentSpec `json:"scannerV4,omitempty"`
 	// Above default is necessary to make the nested default work see: https://github.com/kubernetes-sigs/controller-tools/issues/622
@@ -364,7 +363,9 @@ type LocalScannerComponentSpec struct {
 // LocalScannerV4ComponentSpec defines settings for the "Scanner V4" component in SecuredClusters
 type LocalScannerV4ComponentSpec struct {
 	// If you want to enable the Scanner V4 component set this to "AutoSense"
-	//+kubebuilder:default=Default
+	// If this field is not specified or set to "Default", the following defaulting takes place:
+	// * for new installations, Scanner V4 is enabled starting with ACS 4.8;
+	// * for upgrades to 4.8 from previous releases, Scanner V4 is disabled.
 	//+operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Scanner V4 component",order=1
 	ScannerComponent *LocalScannerV4ComponentPolicy `json:"scannerComponent,omitempty"`
 
@@ -458,6 +459,9 @@ type SecuredCluster struct {
 
 	Spec   SecuredClusterSpec   `json:"spec,omitempty"`
 	Status SecuredClusterStatus `json:"status,omitempty"`
+
+	// This field will never be serialized, it is used for attaching defaulting decisions to a SecuredCluster struct during reconciliation.
+	Defaults SecuredClusterSpec `json:"-"`
 }
 
 //+kubebuilder:object:root=true
@@ -476,4 +480,7 @@ func init() {
 var (
 	// SecuredClusterGVK is the GVK for the SecuredCluster type.
 	SecuredClusterGVK = GroupVersion.WithKind("SecuredCluster")
+
+	LocalScannerV4AutoSense = LocalScannerV4ComponentAutoSense
+	LocalScannerV4Disabled  = LocalScannerV4ComponentDisabled
 )

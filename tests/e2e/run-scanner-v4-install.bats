@@ -497,18 +497,6 @@ EOT
     verify_deployment_scannerV4_env_var_set "$CUSTOM_CENTRAL_NAMESPACE" "central"
 
     ######################
-    _step "verifying-sensor-scanner-not-deployed"
-    verify_no_scannerV2_deployed "$CUSTOM_SENSOR_NAMESPACE"
-    verify_no_scannerV4_deployed "$CUSTOM_SENSOR_NAMESPACE"
-    run ! verify_deployment_scannerV4_env_var_set "$CUSTOM_SENSOR_NAMESPACE" "sensor"
-
-    ######################
-    _step "enabling-sensor-scanners"
-    info "Enabling Scanner V4 for secured-cluster-services"
-    deploy_sensor_with_helm "$CUSTOM_CENTRAL_NAMESPACE" "$CUSTOM_SENSOR_NAMESPACE" "" "" "" "" "" \
-        --set scannerV4.disable=false --set scanner.disable=false
-
-    ######################
     _step "verifying-sensor-scanners-deployed"
     verify_scannerV2_deployed "$CUSTOM_SENSOR_NAMESPACE"
     verify_scannerV4_indexer_deployed "$CUSTOM_SENSOR_NAMESPACE"
@@ -537,27 +525,6 @@ EOT
     info "Verifying Scanner V4 is getting removed for secured-cluster-services"
     verify_deployment_deletion_with_timeout 4m "$CUSTOM_SENSOR_NAMESPACE" scanner-v4-indexer scanner-v4-db
     run ! verify_deployment_scannerV4_env_var_set "$CUSTOM_SENSOR_NAMESPACE" "sensor"
-
-    _end
-}
-
-@test "Fresh installation of HEAD Helm chart with Scanner V4 enabled" {
-    _begin "deploy-stackrox"
-
-    info "Installing StackRox using HEAD Helm chart with Scanner V4 enabled"
-    # shellcheck disable=SC2030,SC2031
-    export OUTPUT_FORMAT=helm
-    # shellcheck disable=SC2030,SC2031
-    export SENSOR_SCANNER_V4_SUPPORT=true
-
-    _deploy_stackrox
-
-    _step "verify"
-
-    verify_scannerV2_deployed "stackrox"
-    verify_scannerV4_deployed "stackrox"
-    verify_deployment_scannerV4_env_var_set "stackrox" "central"
-    verify_deployment_scannerV4_env_var_set "stackrox" "sensor"
 
     _end
 }
@@ -647,13 +614,11 @@ EOT
     fi
 
     # shellcheck disable=SC2030,SC2031
-    export ROX_SCANNER_V4="true"
+    export ROX_SCANNER_V4="" # Scanner V4 enabled by default.
     # shellcheck disable=SC2030,SC2031
     export DEPLOY_STACKROX_VIA_OPERATOR="true"
     # shellcheck disable=SC2030,SC2031
     export SENSOR_SCANNER_SUPPORT=true
-    # shellcheck disable=SC2030,SC2031
-    export SENSOR_SCANNER_V4_SUPPORT=true
 
     _begin "deploy-stackrox"
 
@@ -681,13 +646,11 @@ EOT
     fi
 
     # shellcheck disable=SC2030,SC2031
-    export ROX_SCANNER_V4="true"
+    export ROX_SCANNER_V4="" # Scanner V4 enabled by default.
     # shellcheck disable=SC2030,SC2031
     export DEPLOY_STACKROX_VIA_OPERATOR="true"
     # shellcheck disable=SC2030,SC2031
     export SENSOR_SCANNER_SUPPORT=true
-    # shellcheck disable=SC2030,SC2031
-    export SENSOR_SCANNER_V4_SUPPORT=true
 
     _begin "deploy-stackrox"
 
@@ -1109,7 +1072,6 @@ _deploy_stackrox() {
       DEPLOY_DIR="deploy/${ORCHESTRATOR_FLAVOR}" export_central_basic_auth_creds
     fi
     wait_for_api "${central_namespace}"
-    export_central_cert "${central_namespace}"
     setup_client_TLS_certs "${tls_client_certs}"
     record_build_info "${central_namespace}"
 

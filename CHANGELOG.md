@@ -1,18 +1,34 @@
 
 # Changelog
 
-Entries in this file should be limited to:
+This file helps upstream users learn about what is new in a release.
 
+Put an entry in this file if your change is user-visible and you consider it _particularly noteworthy_. Especially:
 - Any changes that introduce a deprecation in functionality, OR
 - Obscure side-effects that are not obviously apparent based on the JIRA associated with the changes.
-Please avoid adding duplicate information across this changelog and JIRA/doc input pages.
+
+Changes should still be described appropriately in JIRA/doc input pages, for inclusion in downstream release notes.
 
 ## [NEXT RELEASE]
+
+### Added Features
+
+### Removed Features
+
+### Deprecated Features
+
+### Technical Changes
+
+## [4.8.0]
+
+
 
 **HELM USERS**: Please see ROX-27622 under "technical changes" to avoid upgrade failures!
 
 ### Added Features
 
+- ROX-29152: When using the secured-cluster-services Helm chart for new installations StackRox Scanner and Scanner V4 will be installed unless explicitly disabled (opt-out).
+  For upgrades using the new chart version scanners continue to be not installed by default (opt-in).
 - ROX-13493: Support for scale subresource in the admission controller to enable policy detection and enforcement on admission review requests on the scale subresource.
 - RHPF-98: Log creation of API token. The token creation log message will trigger an administration event.
 - ROX-28716: New policy criterion "Days Since CVE Was Published" to allow creation of a policy that offers a grace period to teams to fix vulnerabilities within the number of days from when the CVE was published in the vulnerability feeds.
@@ -20,6 +36,24 @@ Please avoid adding duplicate information across this changelog and JIRA/doc inp
 - ROX-28153: Support for Cosign keyless signing and verification of image signatures.
 - ROX-28306: When using the central-services Helm chart for new installations Scanner V4 will be installed unless explicitly disabled (opt-out).
   For upgrades using the new chart version Scanner V4 continues to be not installed by default (opt-in).
+- ROX-28655: When managing a Central installation using the operator
+  * Scanner V4 will be installed for new installations unless explicitly disabled (opt-out) and
+  * Scanner V4 will remain not installed for upgrades unless explicitly enabled (opt-in).
+- ROX-29151: When managing a SecuredCluster installation using the operator
+  * Scanner V4 will be installed for new installations unless explicitly disabled (opt-out) and
+  * Scanner V4 will remain not installed for upgrades unless explicitly enabled (opt-in).
+- ROX-27443: Scanner V4 now has the ability to only show vulnerability data from Red Hat security data sources for official Red Hat container images
+  found in the [Red Hat Container Catalog](https://catalog.redhat.com/software/containers/explore) when the environment variable `ROX_SCANNER_V4_RED_HAT_LAYERS_RED_HAT_VULNS_ONLY` is set in Scanner V4 Matcher.
+  - Currently, those who use Scanner V4 will see vulnerability data from various sources for all layers in their images.
+    This may lead to confusion when users scan official Red Hat images or images based on official Red Hat images.
+Scanner V4 claims the images contain vulnerabilities which the official Red Hat CVE pages claim do not exist in the same image.
+  - This arises from non-RPM content in official Red Hat container images, such as Go binaries in OpenShift images.
+  - When the variable is set, Scanner V4 will continue to show non-RPM content in official Red Hat container images but will no longer
+    output vulnerabilities from non-Red Hat security data sources for these images.
+- ROX-25570: The data model for image based CVEs has been denormalized
+  - This will result in far more consistent results as 1 image scan will no longer overwrite CVE data of a previous image scan.
+  - `ROX_FLATTEN_CVE_DATA` can be set to false to use the old normalized data model
+- ROX-27696: ROX_EXTERNAL_IPS feature flag enabled by default. Note: Collector will still need to be configured for external IPs for this to have an effect.
 
 ### Removed Features
 
@@ -41,6 +75,13 @@ Please avoid adding duplicate information across this changelog and JIRA/doc inp
       kubectl label crd/securitypolicies.config.stackrox.io app.kubernetes.io/managed-by=Helm
 
   The above values will need to be updated to match your release name (i.e. "stackrox-central-services") or namespace (i.e. "stackrox") in case you had used different ones.
+- ROX-29232: When reading docker config pull secrets from K8s, Sensor will ignore entries containing invalid UTF8 characters.
+- ROX-22597: The S3 backup integration is migrated to the AWS go SDK v2. GCS buckets are not supported anymore by the S3 integration type, as announced in 4.5.0, users should use dedicated GCS integrations for these.
+- The scoping of Google image integrations by project is now optional.
+- ROX-29074: The default output of `roxctl image scan` when using the `--output` flag will now include three new fields, by default: CVSS, Advisory, and Advisory Link (the exact names depend on the specific output format).
+  - CVSS represents the CVSS score of the vulnerability.
+  - The Advisory and Advisory Link fields represent the advisory related to the vulnerability, if it exists and is tracked by StackRox.
+    - A typical example is a CVE's associated RHSA (Red Hat Security Advisory), if the CVE is related to a Red Hat product.
 
 ## [4.7.0]
 

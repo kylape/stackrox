@@ -24,6 +24,7 @@ import { HelpIcon } from '@patternfly/react-icons';
 import sortBy from 'lodash/sortBy';
 
 import PopoverBodyContent from 'Components/PopoverBodyContent';
+import usePermissions from 'hooks/usePermissions';
 import useRestQuery from 'hooks/useRestQuery';
 import useAnalytics, { GENERATE_NETWORK_POLICIES } from 'hooks/useAnalytics';
 import useURLSearch from 'hooks/useURLSearch';
@@ -83,6 +84,9 @@ function NetworkPolicySimulatorSidePanel({
     const { analyticsTrack } = useAnalytics();
     const { searchFilter } = useURLSearch();
 
+    const { hasReadAccess } = usePermissions();
+    const hasReadAccessForNotifiers = hasReadAccess('Integration');
+
     const { activeKeyTab, onSelectTab } = useTabs({
         defaultTab: tabs.SIMULATE_NETWORK_POLICIES,
     });
@@ -109,12 +113,15 @@ function NetworkPolicySimulatorSidePanel({
     const { data: currentNetworkPolicies } = useRestQuery(fetchNetworkPolicies);
 
     function handleFileInputChange(_event: DropEvent, file: File) {
-        if (file && !file.name.includes('.yaml')) {
+        const fileName = file?.name.toLowerCase();
+        const isYaml = fileName?.endsWith('.yaml') || fileName?.endsWith('.yml');
+
+        if (!isYaml) {
             setNetworkPolicyModification({
                 state: 'UPLOAD',
                 options: {
                     modification: null,
-                    error: 'File must be .yaml',
+                    error: 'File must be .yaml or .yml',
                 },
             });
         } else {
@@ -253,16 +260,20 @@ function NetworkPolicySimulatorSidePanel({
                             generateNetworkPolicies={generateNetworkPolicies}
                             undoNetworkPolicies={undoNetworkPolicies}
                             onFileInputChange={handleFileInputChange}
-                            openNotifyYAMLModal={openNotifyYAMLModal}
+                            openNotifyYAMLModal={
+                                hasReadAccessForNotifiers ? openNotifyYAMLModal : undefined
+                            }
                         />
                     </FlexItem>
                 </Flex>
-                <NotifyYAMLModal
-                    isModalOpen={isNotifyModalOpen}
-                    setIsModalOpen={setIsNotifyModalOpen}
-                    clusterId={scopeHierarchy.cluster.id}
-                    modification={simulator.modification}
-                />
+                {hasReadAccessForNotifiers && (
+                    <NotifyYAMLModal
+                        isModalOpen={isNotifyModalOpen}
+                        setIsModalOpen={setIsNotifyModalOpen}
+                        clusterId={scopeHierarchy.cluster.id}
+                        modification={simulator.modification}
+                    />
+                )}
                 {compareModalYAMLs && (
                     <CompareYAMLModal
                         generated={compareModalYAMLs.generated}
@@ -315,16 +326,20 @@ function NetworkPolicySimulatorSidePanel({
                             generateNetworkPolicies={generateNetworkPolicies}
                             undoNetworkPolicies={undoNetworkPolicies}
                             onFileInputChange={handleFileInputChange}
-                            openNotifyYAMLModal={openNotifyYAMLModal}
+                            openNotifyYAMLModal={
+                                hasReadAccessForNotifiers ? openNotifyYAMLModal : undefined
+                            }
                         />
                     </StackItem>
                 </Stack>
-                <NotifyYAMLModal
-                    isModalOpen={isNotifyModalOpen}
-                    setIsModalOpen={setIsNotifyModalOpen}
-                    clusterId={scopeHierarchy.cluster.id}
-                    modification={simulator.modification}
-                />
+                {hasReadAccessForNotifiers && (
+                    <NotifyYAMLModal
+                        isModalOpen={isNotifyModalOpen}
+                        setIsModalOpen={setIsNotifyModalOpen}
+                        clusterId={scopeHierarchy.cluster.id}
+                        modification={simulator.modification}
+                    />
+                )}
             </div>
         );
     }
@@ -365,16 +380,20 @@ function NetworkPolicySimulatorSidePanel({
                             generateNetworkPolicies={generateNetworkPolicies}
                             undoNetworkPolicies={undoNetworkPolicies}
                             onFileInputChange={handleFileInputChange}
-                            openNotifyYAMLModal={openNotifyYAMLModal}
+                            openNotifyYAMLModal={
+                                hasReadAccessForNotifiers ? openNotifyYAMLModal : undefined
+                            }
                         />
                     </StackItem>
                 </Stack>
-                <NotifyYAMLModal
-                    isModalOpen={isNotifyModalOpen}
-                    setIsModalOpen={setIsNotifyModalOpen}
-                    clusterId={scopeHierarchy.cluster.id}
-                    modification={simulator.modification}
-                />
+                {hasReadAccessForNotifiers && (
+                    <NotifyYAMLModal
+                        isModalOpen={isNotifyModalOpen}
+                        setIsModalOpen={setIsNotifyModalOpen}
+                        clusterId={scopeHierarchy.cluster.id}
+                        modification={simulator.modification}
+                    />
+                )}
             </div>
         );
     }

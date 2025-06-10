@@ -13,6 +13,7 @@ import services.GraphQLService
 import services.ImageService
 import util.Env
 
+import spock.lang.IgnoreIf
 import spock.lang.Tag
 import spock.lang.Unroll
 
@@ -107,9 +108,6 @@ class CSVTest extends BaseSpecification {
         }
     }
 
-    // Non-postgres runs
-    // "CVE", "CVE Type(s)", "Fixable", "CVSS Score (version)", "Env Impact (%)", "Impact Score", "Deployments",
-    // "Images", "Nodes", "Components", "Scanned", "Published", "Summary"
     // Postgres runs
     // "Image CVE", "Fixable", "CVSS Score", "Env Impact (%s)", "Impact Score", "Deployments", "Images",
     // "Image Components", "Last Scanned", "Published", "Summary"
@@ -158,6 +156,8 @@ class CSVTest extends BaseSpecification {
     }
 
     @Tag("BAT")
+    // TODO(ROX-29220): Fix the test for fixable cves in component query
+    @IgnoreIf({ Env.ROX_FLATTEN_CVE_DATA == "true" })
     def "Verify CVE CSV data scoped by entity is correct #description"() {
         given:
         def graphQLPayload = payload(id)

@@ -37,7 +37,7 @@ import { getWorkloadEntityPagePath } from '../../utils/searchUtils';
 import ImageComponentVulnerabilitiesTable, {
     ImageComponentVulnerability,
     ImageMetadataContext,
-    imageComponentVulnerabilitiesFragment,
+    convertToFlatImageComponentVulnerabilitiesFragment, // imageComponentVulnerabilitiesFragment
 } from './ImageComponentVulnerabilitiesTable';
 
 import { CveSelectionsProps } from '../../components/ExceptionRequestModal/CveSelections';
@@ -48,7 +48,9 @@ import PendingExceptionLabelLayout from '../components/PendingExceptionLabelLayo
 import PartialCVEDataAlert from '../../components/PartialCVEDataAlert';
 import useWorkloadCveViewContext from '../hooks/useWorkloadCveViewContext';
 import { infoForEpssProbability } from './infoForTh';
-import { formatEpssProbabilityAsPercent, formatTotalAdvisories } from './table.utils';
+// totalAdvisories out of scope for MVP
+// import { formatEpssProbabilityAsPercent, formatTotalAdvisories } from './table.utils';
+import { formatEpssProbabilityAsPercent } from './table.utils';
 
 export const tableId = 'WorkloadCvesImageVulnerabilitiesTable';
 export const defaultColumns = {
@@ -72,10 +74,13 @@ export const defaultColumns = {
         title: 'EPSS probability',
         isShownByDefault: true,
     },
+    // totalAdvisories out of scope for MVP
+    /*
     totalAdvisories: {
         title: 'Advisories',
         isShownByDefault: true,
     },
+    */
     affectedComponents: {
         title: 'Affected components',
         isShownByDefault: true,
@@ -90,29 +95,36 @@ export const defaultColumns = {
     },
 } as const;
 
-export const imageVulnerabilitiesFragment = gql`
-    ${imageComponentVulnerabilitiesFragment}
-    fragment ImageVulnerabilityFields on ImageVulnerability {
-        severity
-        cve
-        summary
-        cvss
-        scoreVersion
-        nvdCvss
-        nvdScoreVersion
-        cveBaseInfo {
-            epss {
-                epssProbability
+// After release, replace temporary function
+// with imageVulnerabilitiesFragment
+// that has unconditional imageComponentVulnerabilitiesFragment.
+export function convertToFlatImageVulnerabilitiesFragment(
+    isFlattenCveDataEnabled: boolean // ROX_FLATTEN_CVE_DATA
+) {
+    return gql`
+        ${convertToFlatImageComponentVulnerabilitiesFragment(isFlattenCveDataEnabled)}
+        fragment ImageVulnerabilityFields on ImageVulnerability {
+            severity
+            cve
+            summary
+            cvss
+            scoreVersion
+            nvdCvss
+            nvdScoreVersion
+            cveBaseInfo {
+                epss {
+                    epssProbability
+                }
+            }
+            discoveredAtImage
+            publishedOn
+            pendingExceptionCount: exceptionCount(requestStatus: $statusesForExceptionCount)
+            imageComponents(query: $query) {
+                ...ImageComponentVulnerabilities
             }
         }
-        discoveredAtImage
-        publishedOn
-        pendingExceptionCount: exceptionCount(requestStatus: $statusesForExceptionCount)
-        imageComponents(query: $query) {
-            ...ImageComponentVulnerabilities
-        }
-    }
-`;
+    `;
+}
 
 export type ImageVulnerability = {
     severity: string;
@@ -166,18 +178,21 @@ function ImageVulnerabilitiesTable({
 
     const { isFeatureFlagEnabled } = useFeatureFlags();
     const isNvdCvssColumnEnabled = isFeatureFlagEnabled('ROX_SCANNER_V4');
-    // Omit for 4.7 release until CVE/advisory separatipn is available in 4.8 release.
-    // const isEpssProbabilityColumnEnabled = isFeatureFlagEnabled('ROX_SCANNER_V4');
-    const isEpssProbabilityColumnEnabled = false;
+    const isEpssProbabilityColumnEnabled =
+        isFeatureFlagEnabled('ROX_SCANNER_V4') && isFeatureFlagEnabled('ROX_FLATTEN_CVE_DATA');
+    // totalAdvisories out of scope for MVP
+    /*
     const isAdvisoryColumnEnabled =
         isFeatureFlagEnabled('ROX_SCANNER_V4') &&
         isFeatureFlagEnabled('ROX_CVE_ADVISORY_SEPARATION');
+    */
 
     const colSpan =
         7 +
         (isNvdCvssColumnEnabled ? 1 : 0) +
         (isEpssProbabilityColumnEnabled ? 1 : 0) +
-        (isAdvisoryColumnEnabled ? 1 : 0) +
+        // totalAdvisories out of scope for MVP
+        // (isAdvisoryColumnEnabled ? 1 : 0) +
         (canSelectRows ? 1 : 0) +
         (createTableActions ? 1 : 0) +
         (showExceptionDetailsLink ? 1 : 0) +
@@ -215,9 +230,9 @@ function ImageVulnerabilitiesTable({
                             EPSS probability
                         </Th>
                     )}
-                    {isAdvisoryColumnEnabled && (
+                    {/* isAdvisoryColumnEnabled && (
                         <Th className={getVisibilityClass('totalAdvisories')}>Advisories</Th>
-                    )}
+                    ) */}
                     <Th className={getVisibilityClass('affectedComponents')}>
                         Affected components
                         {isFiltered && <DynamicColumnIcon />}
@@ -266,7 +281,8 @@ function ImageVulnerabilitiesTable({
                         );
                         const isFixableInImage = getIsSomeVulnerabilityFixable(vulnerabilities);
                         const epssProbability = cveBaseInfo?.epss?.epssProbability;
-                        const totalAdvisories = undefined;
+                        // totalAdvisories out of scope for MVP
+                        // const totalAdvisories = undefined;
                         const isExpanded = expandedRowSet.has(cve);
 
                         return (
@@ -351,7 +367,7 @@ function ImageVulnerabilitiesTable({
                                             {formatEpssProbabilityAsPercent(epssProbability)}
                                         </Td>
                                     )}
-                                    {isAdvisoryColumnEnabled && (
+                                    {/* isAdvisoryColumnEnabled && (
                                         <Td
                                             className={getVisibilityClass('totalAdvisories')}
                                             modifier="nowrap"
@@ -359,7 +375,7 @@ function ImageVulnerabilitiesTable({
                                         >
                                             {formatTotalAdvisories(totalAdvisories)}
                                         </Td>
-                                    )}
+                                    ) */}
                                     <Td
                                         className={getVisibilityClass('affectedComponents')}
                                         dataLabel="Affected components"
@@ -407,17 +423,19 @@ function ImageVulnerabilitiesTable({
                                     <Td />
                                     <Td colSpan={colSpan}>
                                         <ExpandableRowContent>
-                                            {summary && imageMetadata ? (
-                                                <>
+                                            <>
+                                                {summary && (
                                                     <p className="pf-v5-u-mb-md">{summary}</p>
+                                                )}
+                                                {imageMetadata ? (
                                                     <ImageComponentVulnerabilitiesTable
                                                         imageMetadataContext={imageMetadata}
                                                         componentVulnerabilities={imageComponents}
                                                     />
-                                                </>
-                                            ) : (
-                                                <PartialCVEDataAlert />
-                                            )}
+                                                ) : (
+                                                    <PartialCVEDataAlert />
+                                                )}
+                                            </>
                                         </ExpandableRowContent>
                                     </Td>
                                 </Tr>

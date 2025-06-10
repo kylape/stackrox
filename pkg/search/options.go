@@ -64,7 +64,8 @@ var (
 	CVEOrphaned        = newFieldLabel("CVE Orphaned")
 	CVEOrphanedTime    = newFieldLabel("CVE Orphaned Time")
 	EPSSProbablity     = newFieldLabel("EPSS Probability")
-	Advisory           = newFieldLabel("Advisory")
+	AdvisoryName       = newFieldLabel("Advisory Name")
+	AdvisoryLink       = newFieldLabel("Advisory Link")
 
 	Component                      = newFieldLabel("Component")
 	ComponentID                    = newFieldLabel("Component ID")
@@ -238,6 +239,7 @@ var (
 	ComplianceOperatorCheckUID                 = newFieldLabel("Compliance Check UID")
 	ComplianceOperatorCheckName                = newFieldLabel("Compliance Check Name")
 	ComplianceOperatorCheckRationale           = newFieldLabel("Compliance Check Rationale")
+	ComplianceOperatorCheckLastStartedTime     = newFieldLabel("Compliance Check Last Started Time")
 	ComplianceOperatorScanUpdateTime           = newFieldLabel("Compliance Scan Config Last Updated Time")
 	ComplianceOperatorResultCreateTime         = newFieldLabel("Compliance Check Result Created Time")
 	ComplianceOperatorScanLastExecutedTime     = newFieldLabel("Compliance Scan Last Executed Time")
@@ -353,9 +355,19 @@ var (
 
 	// Max-based derived fields.  These fields are primarily used in pagination.  If used in a select it will correspond
 	// to the type of the reference field and simply provide the max function on that field.
-	ComplianceLastScanMax = newDerivedFieldLabel("Compliance Scan Last Executed Time Max", ComplianceOperatorScanLastExecutedTime, MaxDerivationType)
-	SeverityMax           = newDerivedFieldLabel("Severity Max", Severity, MaxDerivationType)
-	CVSSMax               = newDerivedFieldLabel("CVSS Max", CVSS, MaxDerivationType)
+	ComplianceLastScanMax            = newDerivedFieldLabel("Compliance Scan Last Executed Time Max", ComplianceOperatorScanLastExecutedTime, MaxDerivationType)
+	SeverityMax                      = newDerivedFieldLabel("Severity Max", Severity, MaxDerivationType)
+	CVSSMax                          = newDerivedFieldLabel("CVSS Max", CVSS, MaxDerivationType)
+	CVECreatedTimeMin                = newDerivedFieldLabel("CVE Created Time Min", CVECreatedTime, MinDerivationType)
+	EPSSProbablityMax                = newDerivedFieldLabel("EPSS Probability Max", EPSSProbablity, MaxDerivationType)
+	ImpactScoreMax                   = newDerivedFieldLabel("Impact Score Max", ImpactScore, MaxDerivationType)
+	FirstImageOccurrenceTimestampMin = newDerivedFieldLabel("First Image Occurrence Timestamp Min", FirstImageOccurrenceTimestamp, MinDerivationType)
+	VulnerabilityStateMax            = newDerivedFieldLabel("Vulnerability State Max", VulnerabilityState, MaxDerivationType)
+	NVDCVSSMax                       = newDerivedFieldLabel("NVD CVSS Max", NVDCVSS, MaxDerivationType)
+	CVEPublishedOnMin                = newDerivedFieldLabel("CVE Published On Min", CVEPublishedOn, MinDerivationType)
+	ComponentTopCVSSMax              = newDerivedFieldLabel("Component Top CVSS Max", ComponentTopCVSS, MaxDerivationType)
+	// This is the priority which is essentially a reverse sort of the risk score
+	ComponentPriorityMax = newDerivedFieldLabel("Component Risk Priority Score Max", ComponentRiskScore, MaxReverseSortDerivationType)
 
 	// External network sources fields
 	DefaultExternalSource    = newFieldLabel("Default External Source")
@@ -612,4 +624,6 @@ const (
 	SimpleReverseSortDerivationType
 	MaxDerivationType
 	CustomFieldType
+	MinDerivationType
+	MaxReverseSortDerivationType
 )

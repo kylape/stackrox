@@ -25,8 +25,9 @@ import GenerateSbomModal, {
 } from '../../components/GenerateSbomModal';
 import ImageNameLink from '../components/ImageNameLink';
 import SeverityCountLabels from '../../components/SeverityCountLabels';
-import { VulnerabilitySeverityLabel, WatchStatus } from '../../types';
+import { SignatureVerificationResult, VulnerabilitySeverityLabel, WatchStatus } from '../../types';
 import ImageScanningIncompleteLabel from '../components/ImageScanningIncompleteLabelLayout';
+import VerifiedSignatureLabel from '../components/VerifiedSignatureLabelLayout';
 import getImageScanMessage from '../utils/getImageScanMessage';
 import { getSeveritySortOptions } from '../../utils/sortUtils';
 
@@ -78,6 +79,9 @@ export const imageListQuery = gql`
                 low {
                     total
                 }
+                unknown {
+                    total
+                }
             }
             operatingSystem
             deploymentCount(query: $query)
@@ -90,6 +94,13 @@ export const imageListQuery = gql`
             scanTime
             scanNotes
             notes
+            signatureVerificationData {
+                results {
+                    status
+                    verifiedImageReferences
+                    verifierId
+                }
+            }
         }
     }
 `;
@@ -107,6 +118,7 @@ export type Image = {
         important: { total: number };
         moderate: { total: number };
         low: { total: number };
+        unknown: { total: number };
     };
     operatingSystem: string;
     deploymentCount: number;
@@ -119,6 +131,9 @@ export type Image = {
     scanTime: string | null;
     scanNotes: string[];
     notes: string[];
+    signatureVerificationData: {
+        results: SignatureVerificationResult[];
+    } | null;
 };
 
 export type ImageOverviewTableProps = {
@@ -220,11 +235,13 @@ function ImageOverviewTable({
                             scanTime,
                             scanNotes,
                             notes,
+                            signatureVerificationData,
                         } = image;
                         const criticalCount = imageCVECountBySeverity.critical.total;
                         const importantCount = imageCVECountBySeverity.important.total;
                         const moderateCount = imageCVECountBySeverity.moderate.total;
                         const lowCount = imageCVECountBySeverity.low.total;
+                        const unknownCount = imageCVECountBySeverity.unknown.total;
 
                         const isWatchedImage = watchStatus === 'WATCHED';
                         const watchImageMenuText = isWatchedImage ? 'Unwatch image' : 'Watch image';
@@ -273,6 +290,12 @@ function ImageOverviewTable({
                                     <Td dataLabel="Image">
                                         {name ? (
                                             <ImageNameLink name={name} id={id}>
+                                                <VerifiedSignatureLabel
+                                                    results={signatureVerificationData?.results}
+                                                    className="pf-v5-u-mt-xs"
+                                                    isCompact
+                                                    variant="outline"
+                                                />
                                                 {isWatchedImage && (
                                                     <Label
                                                         isCompact
@@ -304,6 +327,7 @@ function ImageOverviewTable({
                                                 importantCount={importantCount}
                                                 moderateCount={moderateCount}
                                                 lowCount={lowCount}
+                                                unknownCount={unknownCount}
                                                 entity="image"
                                                 filteredSeverities={filteredSeverities}
                                             />

@@ -11,6 +11,7 @@ import {
     ToggleGroupItem,
 } from '@patternfly/react-core';
 
+import { TimeWindow } from 'constants/timeWindows';
 import { UseURLPaginationResult } from 'hooks/useURLPagination';
 import { UseUrlSearchReturn } from 'hooks/useURLSearch';
 
@@ -33,6 +34,7 @@ export type ExternalEntitiesSideBarProps = {
     scopeHierarchy: NetworkScopeHierarchy;
     onNodeSelect: (id: string) => void;
     onExternalIPSelect: (externalIP: string | undefined) => void;
+    timeWindow: TimeWindow;
     urlPagination: UseURLPaginationResult;
     urlSearchFiltering: UseUrlSearchReturn;
 };
@@ -54,6 +56,7 @@ function ExternalEntitiesSideBar({
     selectedExternalIP,
     onNodeSelect,
     onExternalIPSelect,
+    timeWindow,
     urlPagination,
     urlSearchFiltering,
 }: ExternalEntitiesSideBarProps): ReactElement {
@@ -77,6 +80,7 @@ function ExternalEntitiesSideBar({
                 scopeHierarchy={scopeHierarchy}
                 onNodeSelect={onNodeSelect}
                 onExternalIPSelect={onExternalIPSelect}
+                timeWindow={timeWindow}
                 urlPagination={urlPagination}
                 urlSearchFiltering={urlSearchFiltering}
             />
@@ -122,6 +126,7 @@ function ExternalEntitiesSideBar({
                         <ExternalIpsContainer
                             scopeHierarchy={scopeHierarchy}
                             onExternalIPSelect={onExternalIPSelect}
+                            timeWindow={timeWindow}
                             urlPagination={urlPagination}
                             urlSearchFiltering={urlSearchFiltering}
                         />

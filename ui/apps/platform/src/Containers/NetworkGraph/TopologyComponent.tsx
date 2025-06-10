@@ -14,6 +14,7 @@ import {
     VisualizationSurface,
 } from '@patternfly/react-topology';
 
+import { TimeWindow } from 'constants/timeWindows';
 import { networkBasePath } from 'routePaths';
 import useFeatureFlags from 'hooks/useFeatureFlags';
 import usePermissions from 'hooks/usePermissions';
@@ -75,6 +76,7 @@ export type TopologyComponentProps = {
     setNetworkPolicyModification: SetNetworkPolicyModification;
     edgeState: EdgeState;
     scopeHierarchy: NetworkScopeHierarchy;
+    timeWindow: TimeWindow;
 };
 
 const TopologyComponent = ({
@@ -86,6 +88,7 @@ const TopologyComponent = ({
     setNetworkPolicyModification,
     edgeState,
     scopeHierarchy,
+    timeWindow,
 }: TopologyComponentProps) => {
     const { isFeatureFlagEnabled } = useFeatureFlags();
     const isNetworkGraphExternalIpsEnabled = isFeatureFlagEnabled('ROX_NETWORK_GRAPH_EXTERNAL_IPS');
@@ -94,10 +97,19 @@ const TopologyComponent = ({
     const hasReadAccessForNetworkPolicy = hasReadAccess('NetworkPolicy');
 
     const { detailID: selectedExternalIP } = useParams();
+
+    // three paginations (default + two flows tables: anomalous & baseline)
+    // deployment flows section has 2 tables instead of 1 which is why we need anomalous+baseline.
+    // set at the topology level so we can reset every table when switching nodes.
     const urlPagination = useURLPagination(DEFAULT_NETWORK_GRAPH_PAGE_SIZE);
     const { setPage, setPerPage } = urlPagination;
+    const anomalousUrlPagination = useURLPagination(DEFAULT_NETWORK_GRAPH_PAGE_SIZE, 'anomalous');
+    const { setPage: setPageAnomalous, setPerPage: setPerPageAnomalous } = anomalousUrlPagination;
+    const baselineUrlPagination = useURLPagination(DEFAULT_NETWORK_GRAPH_PAGE_SIZE, 'baseline');
+    const { setPage: setPageBaseline, setPerPage: setPerPageBaseline } = baselineUrlPagination;
+
     const urlSearchFiltering = useURLSearch('sidePanel');
-    const { searchFilter, setSearchFilter } = urlSearchFiltering;
+    const { setSearchFilter } = urlSearchFiltering;
 
     const firstRenderRef = useRef(true);
     const location = useLocation();
@@ -190,14 +202,23 @@ const TopologyComponent = ({
     });
 
     useEffect(() => {
-        setPage(1);
         setPerPage(DEFAULT_NETWORK_GRAPH_PAGE_SIZE);
-        setSearchFilter({});
-    }, [setPage, setPerPage, setSearchFilter, selectedNode]);
-
-    useEffect(() => {
         setPage(1);
-    }, [setPage, setPerPage, searchFilter]);
+        setPerPageAnomalous(DEFAULT_NETWORK_GRAPH_PAGE_SIZE);
+        setPageAnomalous(1);
+        setPerPageBaseline(DEFAULT_NETWORK_GRAPH_PAGE_SIZE);
+        setPageBaseline(1);
+        setSearchFilter({});
+    }, [
+        setPage,
+        setPerPage,
+        setSearchFilter,
+        setPageAnomalous,
+        setPerPageAnomalous,
+        setPageBaseline,
+        setPerPageBaseline,
+        selectedNode,
+    ]);
 
     useEffect(() => {
         // we don't want to reset view on init
@@ -261,11 +282,11 @@ const TopologyComponent = ({
                             edges={model?.edges || []}
                             edgeState={edgeState}
                             onNodeSelect={onNodeSelect}
-                            onExternalIPSelect={onExternalIPSelect}
                             defaultDeploymentTab={defaultDeploymentTab}
-                            scopeHierarchy={scopeHierarchy}
-                            urlPagination={urlPagination}
+                            anomalousUrlPagination={anomalousUrlPagination}
+                            baselineUrlPagination={baselineUrlPagination}
                             urlSearchFiltering={urlSearchFiltering}
+                            timeWindow={timeWindow}
                         />
                     )}
                     {selectedNode && selectedNode?.data?.type === 'EXTERNAL_GROUP' && (
@@ -301,6 +322,7 @@ const TopologyComponent = ({
                                 selectedExternalIP={selectedExternalIP}
                                 onNodeSelect={onNodeSelect}
                                 onExternalIPSelect={onExternalIPSelect}
+                                timeWindow={timeWindow}
                                 urlPagination={urlPagination}
                                 urlSearchFiltering={urlSearchFiltering}
                             />

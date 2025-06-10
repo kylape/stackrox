@@ -198,6 +198,24 @@ func (m *CVEInfo) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (m *Advisory) CloneVT() *Advisory {
+	if m == nil {
+		return (*Advisory)(nil)
+	}
+	r := new(Advisory)
+	r.Name = m.Name
+	r.Link = m.Link
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *Advisory) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
 func (m *ImageCVE) CloneVT() *ImageCVE {
 	if m == nil {
 		return (*ImageCVE)(nil)
@@ -240,7 +258,6 @@ func (m *ImageCVEV2) CloneVT() *ImageCVEV2 {
 	r.Id = m.Id
 	r.ImageId = m.ImageId
 	r.CveBaseInfo = m.CveBaseInfo.CloneVT()
-	r.OperatingSystem = m.OperatingSystem
 	r.Cvss = m.Cvss
 	r.Severity = m.Severity
 	r.ImpactScore = m.ImpactScore
@@ -250,7 +267,7 @@ func (m *ImageCVEV2) CloneVT() *ImageCVEV2 {
 	r.State = m.State
 	r.IsFixable = m.IsFixable
 	r.ComponentId = m.ComponentId
-	r.Advisory = m.Advisory
+	r.Advisory = m.Advisory.CloneVT()
 	if m.HasFixedBy != nil {
 		r.HasFixedBy = m.HasFixedBy.(interface {
 			CloneVT() isImageCVEV2_HasFixedBy
@@ -722,6 +739,28 @@ func (this *CVEInfo) EqualMessageVT(thatMsg proto.Message) bool {
 	}
 	return this.EqualVT(that)
 }
+func (this *Advisory) EqualVT(that *Advisory) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Name != that.Name {
+		return false
+	}
+	if this.Link != that.Link {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Advisory) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*Advisory)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
 func (this *ImageCVE) EqualVT(that *ImageCVE) bool {
 	if this == that {
 		return true
@@ -815,9 +854,6 @@ func (this *ImageCVEV2) EqualVT(that *ImageCVEV2) bool {
 	if !this.CveBaseInfo.EqualVT(that.CveBaseInfo) {
 		return false
 	}
-	if this.OperatingSystem != that.OperatingSystem {
-		return false
-	}
 	if this.Cvss != that.Cvss {
 		return false
 	}
@@ -845,7 +881,7 @@ func (this *ImageCVEV2) EqualVT(that *ImageCVEV2) bool {
 	if this.ComponentId != that.ComponentId {
 		return false
 	}
-	if this.Advisory != that.Advisory {
+	if !this.Advisory.EqualVT(that.Advisory) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1736,6 +1772,53 @@ func (m *CVEInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *Advisory) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Advisory) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *Advisory) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Link) > 0 {
+		i -= len(m.Link)
+		copy(dAtA[i:], m.Link)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Link)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *ImageCVE) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -1902,19 +1985,22 @@ func (m *ImageCVEV2) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		}
 		i -= size
 	}
-	if len(m.Advisory) > 0 {
-		i -= len(m.Advisory)
-		copy(dAtA[i:], m.Advisory)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Advisory)))
+	if m.Advisory != nil {
+		size, err := m.Advisory.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x7a
+		dAtA[i] = 0x72
 	}
 	if len(m.ComponentId) > 0 {
 		i -= len(m.ComponentId)
 		copy(dAtA[i:], m.ComponentId)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ComponentId)))
 		i--
-		dAtA[i] = 0x72
+		dAtA[i] = 0x6a
 	}
 	if m.IsFixable {
 		i--
@@ -1924,12 +2010,12 @@ func (m *ImageCVEV2) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0x60
+		dAtA[i] = 0x58
 	}
 	if m.State != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.State))
 		i--
-		dAtA[i] = 0x58
+		dAtA[i] = 0x50
 	}
 	if m.FirstImageOccurrence != nil {
 		size, err := (*timestamppb1.Timestamp)(m.FirstImageOccurrence).MarshalToSizedBufferVT(dAtA[:i])
@@ -1939,42 +2025,35 @@ func (m *ImageCVEV2) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x52
+		dAtA[i] = 0x4a
 	}
 	if m.NvdScoreVersion != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.NvdScoreVersion))
 		i--
-		dAtA[i] = 0x48
+		dAtA[i] = 0x40
 	}
 	if m.Nvdcvss != 0 {
 		i -= 4
 		binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Nvdcvss))))
 		i--
-		dAtA[i] = 0x45
+		dAtA[i] = 0x3d
 	}
 	if m.ImpactScore != 0 {
 		i -= 4
 		binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.ImpactScore))))
 		i--
-		dAtA[i] = 0x3d
+		dAtA[i] = 0x35
 	}
 	if m.Severity != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Severity))
 		i--
-		dAtA[i] = 0x30
+		dAtA[i] = 0x28
 	}
 	if m.Cvss != 0 {
 		i -= 4
 		binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Cvss))))
 		i--
-		dAtA[i] = 0x2d
-	}
-	if len(m.OperatingSystem) > 0 {
-		i -= len(m.OperatingSystem)
-		copy(dAtA[i:], m.OperatingSystem)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.OperatingSystem)))
-		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x25
 	}
 	if m.CveBaseInfo != nil {
 		size, err := m.CveBaseInfo.MarshalToSizedBufferVT(dAtA[:i])
@@ -2014,7 +2093,7 @@ func (m *ImageCVEV2_FixedBy) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	copy(dAtA[i:], m.FixedBy)
 	i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.FixedBy)))
 	i--
-	dAtA[i] = 0x6a
+	dAtA[i] = 0x62
 	return len(dAtA) - i, nil
 }
 func (m *NodeCVE) MarshalVT() (dAtA []byte, err error) {
@@ -2777,6 +2856,24 @@ func (m *CVEInfo) SizeVT() (n int) {
 	return n
 }
 
+func (m *Advisory) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Link)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
 func (m *ImageCVE) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -2849,10 +2946,6 @@ func (m *ImageCVEV2) SizeVT() (n int) {
 		l = m.CveBaseInfo.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.OperatingSystem)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
 	if m.Cvss != 0 {
 		n += 5
 	}
@@ -2885,8 +2978,8 @@ func (m *ImageCVEV2) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.Advisory)
-	if l > 0 {
+	if m.Advisory != nil {
+		l = m.Advisory.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -4790,6 +4883,121 @@ func (m *CVEInfo) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *Advisory) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Advisory: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Advisory: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Link", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Link = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *ImageCVE) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -5268,38 +5476,6 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OperatingSystem", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.OperatingSystem = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 5:
 			if wireType != 5 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Cvss", wireType)
 			}
@@ -5310,7 +5486,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 			v = uint32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
 			iNdEx += 4
 			m.Cvss = float32(math.Float32frombits(v))
-		case 6:
+		case 5:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Severity", wireType)
 			}
@@ -5329,7 +5505,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 7:
+		case 6:
 			if wireType != 5 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ImpactScore", wireType)
 			}
@@ -5340,7 +5516,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 			v = uint32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
 			iNdEx += 4
 			m.ImpactScore = float32(math.Float32frombits(v))
-		case 8:
+		case 7:
 			if wireType != 5 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Nvdcvss", wireType)
 			}
@@ -5351,7 +5527,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 			v = uint32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
 			iNdEx += 4
 			m.Nvdcvss = float32(math.Float32frombits(v))
-		case 9:
+		case 8:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field NvdScoreVersion", wireType)
 			}
@@ -5370,7 +5546,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 10:
+		case 9:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FirstImageOccurrence", wireType)
 			}
@@ -5406,7 +5582,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 11:
+		case 10:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field State", wireType)
 			}
@@ -5425,7 +5601,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 12:
+		case 11:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IsFixable", wireType)
 			}
@@ -5445,7 +5621,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.IsFixable = bool(v != 0)
-		case 13:
+		case 12:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FixedBy", wireType)
 			}
@@ -5477,7 +5653,7 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 			}
 			m.HasFixedBy = &ImageCVEV2_FixedBy{FixedBy: string(dAtA[iNdEx:postIndex])}
 			iNdEx = postIndex
-		case 14:
+		case 13:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ComponentId", wireType)
 			}
@@ -5509,11 +5685,11 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ComponentId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 15:
+		case 14:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Advisory", wireType)
 			}
-			var stringLen uint64
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -5523,23 +5699,27 @@ func (m *ImageCVEV2) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if msglen < 0 {
 				return protohelpers.ErrInvalidLength
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + msglen
 			if postIndex < 0 {
 				return protohelpers.ErrInvalidLength
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Advisory = string(dAtA[iNdEx:postIndex])
+			if m.Advisory == nil {
+				m.Advisory = &Advisory{}
+			}
+			if err := m.Advisory.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -8593,6 +8773,129 @@ func (m *CVEInfo) UnmarshalVTUnsafe(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *Advisory) UnmarshalVTUnsafe(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Advisory: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Advisory: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			var stringValue string
+			if intStringLen > 0 {
+				stringValue = unsafe.String(&dAtA[iNdEx], intStringLen)
+			}
+			m.Name = stringValue
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Link", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			var stringValue string
+			if intStringLen > 0 {
+				stringValue = unsafe.String(&dAtA[iNdEx], intStringLen)
+			}
+			m.Link = stringValue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *ImageCVE) UnmarshalVTUnsafe(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -9087,42 +9390,6 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OperatingSystem", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			var stringValue string
-			if intStringLen > 0 {
-				stringValue = unsafe.String(&dAtA[iNdEx], intStringLen)
-			}
-			m.OperatingSystem = stringValue
-			iNdEx = postIndex
-		case 5:
 			if wireType != 5 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Cvss", wireType)
 			}
@@ -9133,7 +9400,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 			v = uint32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
 			iNdEx += 4
 			m.Cvss = float32(math.Float32frombits(v))
-		case 6:
+		case 5:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Severity", wireType)
 			}
@@ -9152,7 +9419,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 					break
 				}
 			}
-		case 7:
+		case 6:
 			if wireType != 5 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ImpactScore", wireType)
 			}
@@ -9163,7 +9430,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 			v = uint32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
 			iNdEx += 4
 			m.ImpactScore = float32(math.Float32frombits(v))
-		case 8:
+		case 7:
 			if wireType != 5 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Nvdcvss", wireType)
 			}
@@ -9174,7 +9441,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 			v = uint32(binary.LittleEndian.Uint32(dAtA[iNdEx:]))
 			iNdEx += 4
 			m.Nvdcvss = float32(math.Float32frombits(v))
-		case 9:
+		case 8:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field NvdScoreVersion", wireType)
 			}
@@ -9193,7 +9460,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 					break
 				}
 			}
-		case 10:
+		case 9:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FirstImageOccurrence", wireType)
 			}
@@ -9229,7 +9496,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 11:
+		case 10:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field State", wireType)
 			}
@@ -9248,7 +9515,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 					break
 				}
 			}
-		case 12:
+		case 11:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IsFixable", wireType)
 			}
@@ -9268,7 +9535,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 				}
 			}
 			m.IsFixable = bool(v != 0)
-		case 13:
+		case 12:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FixedBy", wireType)
 			}
@@ -9304,7 +9571,7 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 			}
 			m.HasFixedBy = &ImageCVEV2_FixedBy{FixedBy: stringValue}
 			iNdEx = postIndex
-		case 14:
+		case 13:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ComponentId", wireType)
 			}
@@ -9340,11 +9607,11 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 			}
 			m.ComponentId = stringValue
 			iNdEx = postIndex
-		case 15:
+		case 14:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Advisory", wireType)
 			}
-			var stringLen uint64
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -9354,27 +9621,27 @@ func (m *ImageCVEV2) UnmarshalVTUnsafe(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if msglen < 0 {
 				return protohelpers.ErrInvalidLength
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + msglen
 			if postIndex < 0 {
 				return protohelpers.ErrInvalidLength
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			var stringValue string
-			if intStringLen > 0 {
-				stringValue = unsafe.String(&dAtA[iNdEx], intStringLen)
+			if m.Advisory == nil {
+				m.Advisory = &Advisory{}
 			}
-			m.Advisory = stringValue
+			if err := m.Advisory.UnmarshalVTUnsafe(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

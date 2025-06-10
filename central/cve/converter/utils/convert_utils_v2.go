@@ -3,7 +3,6 @@ package utils
 import (
 	"github.com/stackrox/rox/generated/storage"
 	"github.com/stackrox/rox/pkg/cve"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // ImageCVEV2ToEmbeddedVulnerability coverts a `*storage.ImageCVEV2` to an `*storage.EmbeddedVulnerability`.
@@ -32,12 +31,18 @@ func ImageCVEV2ToEmbeddedVulnerability(vuln *storage.ImageCVEV2) *storage.Embedd
 		VulnerabilityType:     storage.EmbeddedVulnerability_IMAGE_VULNERABILITY,
 		VulnerabilityTypes:    []storage.EmbeddedVulnerability_VulnerabilityType{storage.EmbeddedVulnerability_IMAGE_VULNERABILITY},
 		State:                 vuln.GetState(),
-		Advisory:              vuln.GetAdvisory(),
 	}
 
 	if vuln.IsFixable {
 		ret.SetFixedBy = &storage.EmbeddedVulnerability_FixedBy{
 			FixedBy: vuln.GetFixedBy(),
+		}
+	}
+
+	if vuln.GetAdvisory() != nil {
+		ret.Advisory = &storage.Advisory{
+			Name: vuln.GetAdvisory().GetName(),
+			Link: vuln.GetAdvisory().GetLink(),
 		}
 	}
 
@@ -70,16 +75,6 @@ func EmbeddedVulnerabilityToImageCVEV2(imageID string, componentID string, from 
 		impactScore = from.GetCvssV2().GetImpactScore()
 	}
 
-	createdAt := from.GetFirstSystemOccurrence()
-	if createdAt == nil {
-		createdAt = timestamppb.Now()
-	}
-
-	firstImageOccurrence := from.GetFirstImageOccurrence()
-	if firstImageOccurrence == nil {
-		firstImageOccurrence = timestamppb.Now()
-	}
-
 	cveID, err := cve.IDV2(from, componentID)
 	if err != nil {
 		return nil, err
@@ -93,7 +88,7 @@ func EmbeddedVulnerabilityToImageCVEV2(imageID string, componentID string, from 
 			Summary:      from.GetSummary(),
 			Link:         from.GetLink(),
 			PublishedOn:  from.GetPublishedOn(),
-			CreatedAt:    createdAt,
+			CreatedAt:    from.GetFirstSystemOccurrence(),
 			LastModified: from.GetLastModified(),
 			CvssV2:       from.GetCvssV2(),
 			CvssV3:       from.GetCvssV3(),
@@ -106,7 +101,7 @@ func EmbeddedVulnerabilityToImageCVEV2(imageID string, componentID string, from 
 		NvdScoreVersion:      nvdVersion,
 		Severity:             from.GetSeverity(),
 		ImageId:              imageID,
-		FirstImageOccurrence: firstImageOccurrence,
+		FirstImageOccurrence: from.GetFirstImageOccurrence(),
 		State:                from.GetState(),
 		IsFixable:            from.GetFixedBy() != "",
 		ImpactScore:          impactScore,

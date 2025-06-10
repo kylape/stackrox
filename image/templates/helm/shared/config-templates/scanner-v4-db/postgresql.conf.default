@@ -33,6 +33,7 @@ ssl_key_file = '/run/secrets/stackrox.io/certs/server.key'
 shared_buffers = 750MB
 work_mem = 16MB
 maintenance_work_mem = 128MB
+autovacuum_work_mem = 256MB
 dynamic_shared_memory_type = posix
 
 #------------------------------------------------------------------------------
@@ -45,16 +46,22 @@ max_wal_size = 3GB
 min_wal_size = 80MB
 
 #------------------------------------------------------------------------------
+# AUTOMATIC VACUUMING
+#------------------------------------------------------------------------------
+
+autovacuum_max_workers = 2
+
+#------------------------------------------------------------------------------
 # REPORTING AND LOGGING
 #------------------------------------------------------------------------------
 
 # - When to Log -
 
-log_min_duration_statement = 500
+log_min_duration_statement = 1min
 
 # - What to Log -
 
-log_autovacuum_min_duration = 500
+log_autovacuum_min_duration = 500ms
 log_checkpoints = 'on'
 log_connections = 'on'
 log_disconnections = 'on'

@@ -46,7 +46,7 @@ main() {
     fi
 
     mkdir -p "${dest}"
-    roxctl -e "${api_endpoint}" --insecure-skip-tls-verify central backup --output "${dest}"
+    roxctl --ca="" --insecure-skip-tls-verify -e "${api_endpoint}" central backup --output "${dest}"
 
     # Pull some data not found from the database
     set +e
