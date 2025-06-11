@@ -55,6 +55,10 @@ function getSrcAliases() {
     const aliases = {};
 
     fs.readdirSync(path.resolve(__dirname, 'src'), { withFileTypes: true }).forEach(({ name }) => {
+        if (name.startsWith('.')) {
+            // avoid hidden directories, like `.DS_Store`
+            return;
+        }
         const alias = name.includes('.') ? name.split('.').slice(0, -1).join('.') : name;
         aliases[alias] = `/src/${name}`;
     });
@@ -94,11 +98,10 @@ export default defineConfig(async () => {
         // Any environment variable that we want passed to our application code must be explicitly defined below
         define: {
             'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
-            'process.env.VITE_ROX_PRODUCT_BRANDING': JSON.stringify(
-                process.env.VITE_ROX_PRODUCT_BRANDING
-            ),
-            // Define `global` here due to redoc's usage of this NodeJS module
-            global: {},
+            'process.env.ROX_PRODUCT_BRANDING': JSON.stringify(process.env.ROX_PRODUCT_BRANDING),
+            // Define `global` here for compatibility with modules that assign to the top level
+            // scope with `global` instead of `window`
+            global: 'window',
         },
         plugins: [react(), svgr(), ...(sslOptions?.basicSsl ? [sslOptions.basicSsl()] : [])],
         resolve: {
