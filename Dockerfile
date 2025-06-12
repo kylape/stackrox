@@ -1,4 +1,4 @@
-FROM quay.io/klape/stackrox-base:latest
+FROM quay.io/klape/stackrox-base:latest-arm
 
 COPY image/rhel/static-bin/* /usr/bin
 RUN mkdir -p /stackrox/static-data && save-dir-contents /etc/pki/ca-trust /etc/ssl
