@@ -1,0 +1,50 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: vulma
+spec:
+  description: | 
+    vulnerability management
+  params:
+  - name: repo-url
+    type: string
+  - name: revision
+    type: string
+  workspaces:
+  - name: shared-data
+  - name: dockerconfig
+  tasks:
+  - name: fetch-source
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskRef:
+      name: git-clone
+    params:
+    - name: url
+      value: $(params.repo-url)
+    - name: submodules
+      value: "true"
+    - name: revision
+      value: $(params.revision)
+    - name: subdirectory
+      value: source
+  - name: build-image
+    runAfter:
+    - fetch-source
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: dockerconfig
+      workspace: dockerconfig
+    taskRef:
+      name: buildah
+    params:
+    - name: IMAGE
+      value: kind-registry:5000/stackrox/vulma:latest
+    - name: PUSH_EXTRA_ARGS
+      value: "--tls-verify=false"
+    - name: CONTEXT
+      value: ./source
+    - name: DOCKERFILE
+      value: ./Containerfile

@@ -1,0 +1,37 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: collector-build
+spec:
+  description: Build collector binary and run unit tests
+  params:
+  - name: COLLECTOR_BUILDER_TAG
+    type: string
+    description: Tag for the collector builder image
+    default: latest
+  - name: REGISTRY
+    type: string
+    description: Container registry
+    default: kind-registry:5000
+  workspaces:
+  - name: shared-data
+    description: The workspace containing the source code
+  steps:
+  - name: build-collector-binary
+    image: $(params.REGISTRY)/stackrox/collector-builder:$(params.COLLECTOR_BUILDER_TAG)
+    script: |
+      #!/usr/bin/env bash
+      set -ex
+      cd $(workspaces.shared-data.path)/source/collector
+      
+      # Build collector binary
+      make collector
+      
+      # Run unit tests
+      make unittest
+      
+      # Copy collector binary to main bin directory for inclusion in combined image
+      mkdir -p $(workspaces.shared-data.path)/source/bin
+      cp collector/collector $(workspaces.shared-data.path)/source/bin/collector
+    securityContext:
+      privileged: true
