@@ -1,0 +1,25 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: stackrox-builder-
+spec:
+  pipelineRef:
+    name: stackrox-builder
+  params:
+  - name: repo-url
+    value: https://github.com/stackrox/stackrox.git
+  - name: revision
+    value: vmvm
+  - name: builder-tag
+    value: latest
+  - name: registry
+    value: kind-registry:5000
+  workspaces:
+  - name: shared-data
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi

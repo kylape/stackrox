@@ -1,0 +1,63 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: fetch-cache-v2
+  annotations:
+    tekton.dev/tags: "cache"
+spec:
+  description: |
+    Fetches cache using tekton-caches StepActions with S3/MinIO backend.
+    Compatible wrapper for existing fetch-cache task interface.
+  params:
+  - name: HASHED_FILE_PATH
+    description: Path to file in source repository to hash to compute cache key (converted to pattern)
+    type: string
+  - name: BUCKET_NAME
+    description: Name of bucket that stores the caches
+    type: string
+  - name: BUILDER_IMAGE
+    description: Builder image spec (not used in new implementation but kept for compatibility)
+    type: string
+    default: ""
+  - name: S3_URL
+    description: URL to object storage
+    default: http://minio:9000
+  results:
+  - name: fetched
+    description: Whether cache was fetched (true/false)
+  workspaces:
+  - name: shared-data
+  steps:
+  - name: cache-fetch
+    ref:
+      name: cache-fetch
+    params:
+    - name: PATTERNS
+      value: ["$(params.HASHED_FILE_PATH)"]
+    - name: SOURCE
+      value: "s3://$(params.BUCKET_NAME)/{{hash}}"
+    - name: CACHE_PATH
+      value: "$(workspaces.shared-data.path)/$(params.BUCKET_NAME)"
+    - name: WORKING_DIR
+      value: "$(workspaces.shared-data.path)/source"
+    - name: AWS_SHARED_CREDENTIALS_FILE
+      value: "$(workspaces.shared-data.path)/.aws/credentials"
+    - name: AWS_CONFIG_FILE
+      value: "$(workspaces.shared-data.path)/.aws/config"
+    - name: BLOB_QUERY_PARAMS
+      value: "?endpoint=$(params.S3_URL)&disable_https=true&use_path_style=true"
+    - name: INSECURE
+      value: "true"
+  - name: output-result
+    image: $(params.BUILDER_IMAGE)
+    env:
+    - name: CACHE_FETCH_RESULT_PATH
+      value: "$(steps.cache-fetch.results.fetched.path)"
+    script: |
+      #!/bin/sh
+      # Pass through the fetched result from cache-fetch step
+      if [ -f "$CACHE_FETCH_RESULT_PATH" ]; then
+        cp "$CACHE_FETCH_RESULT_PATH" "$(results.fetched.path)"
+      else
+        echo -n "false" > "$(results.fetched.path)"
+      fi

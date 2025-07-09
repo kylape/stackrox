@@ -1,0 +1,696 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: stackrox
+spec:
+  description: | 
+    This pipeline clones a git repo, builds a Docker image with Kaniko and
+    pushes it to a registry
+  params:
+  - name: repo-url
+    type: string
+  - name: revision
+    type: string
+  - name: builder-image
+    type: string
+  - name: collector-builder-tag
+    type: string
+    default: latest
+  - name: registry
+    type: string
+    default: kind-registry:5000
+  workspaces:
+  - name: shared-data
+  tasks:
+  - name: setup-aws-credentials
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: setup-aws-credentials
+  - name: mock-docker-config
+    workspaces:
+    - name: source
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: scanner-bundle
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          mkdir -p $(workspaces.source.path)/.docker
+          echo '{}' > $(workspaces.source.path)/config.json
+  - name: fetch-source
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskRef:
+      name: git-clone-custom
+    params:
+    - name: url
+      value: $(params.repo-url)
+    - name: submodules
+      value: "false"
+    - name: revision
+      value: $(params.revision)
+    - name: subdirectory
+      value: source
+    - name: builder-image
+      value: $(params.builder-image)
+  - name: read-versions
+    runAfter:
+    - fetch-source
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      results:
+      - name: scanner-version
+        description: Scanner version from SCANNER_VERSION file
+      - name: collector-version
+        description: Collector version from COLLECTOR_VERSION file
+      steps:
+      - name: read-versions
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          #
+          # Read scanner version and parse if it's git describe format
+          scanner_version_raw=$(cat SCANNER_VERSION | tr -d '\n')
+          echo "Raw scanner version: $scanner_version_raw"
+
+          # Check if scanner version is in git describe format and map to appropriate branch/tag
+          if [[ "$scanner_version_raw" =~ ^2\.37 ]]; then
+            # Scanner version 2.37.x maps to release-2.37 branch
+            scanner_version="release-2.37"
+            echo "Mapped scanner version $scanner_version_raw to branch: $scanner_version"
+          elif [[ "$scanner_version_raw" =~ -g([a-f0-9]+)$ ]]; then
+            # For other git describe formats, use release-2.35 as fallback
+            scanner_version="release-2.35"
+            echo "Using fallback scanner branch for git describe format: $scanner_version"
+          else
+            # Use as-is if it doesn't match git describe format
+            scanner_version="$scanner_version_raw"
+            echo "Using scanner version as-is: $scanner_version"
+          fi
+          echo -n "$scanner_version" | tee $(results.scanner-version.path)
+
+          # Handle collector version - for 3.22.x series, map to appropriate branch
+          collector_version_raw=$(cat COLLECTOR_VERSION | tr -d '\n')
+          if [[ "$collector_version_raw" =~ ^3\.22 ]]; then
+            # Collector version 3.22.x maps to release-3.22 branch
+            collector_version="release-3.22"
+            echo "Mapped collector version $collector_version_raw to branch: $collector_version"
+          elif [[ "$collector_version_raw" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Try version without prefix first
+            collector_version="$collector_version_raw"
+            echo "Using collector version as-is: $collector_version"
+          else
+            collector_version="$collector_version_raw"
+            echo "Using collector version as-is: $collector_version"
+          fi
+          echo -n "$collector_version" | tee $(results.collector-version.path)
+  - name: fetch-scanner
+    runAfter:
+    - read-versions
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskRef:
+      name: git-clone-custom
+    params:
+    - name: url
+      value: "https://github.com/stackrox/scanner"
+    - name: revision
+      value: "$(tasks.read-versions.results.scanner-version)"
+    - name: subdirectory
+      value: scannerv2
+    - name: depth
+      value: "0"
+    - name: builder-image
+      value: $(params.builder-image)
+  - name: fetch-collector
+    runAfter:
+    - read-versions
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskRef:
+      name: git-clone-custom
+    params:
+    - name: url
+      value: "https://github.com/stackrox/collector"
+    - name: revision
+      value: "$(tasks.read-versions.results.collector-version)"
+    - name: subdirectory
+      value: collector
+    - name: builder-image
+      value: $(params.builder-image)
+  #- name: unit-test
+  #  runAfter:
+  #  - go-mod-tidy
+  #  workspaces:
+  #  - name: source
+  #    workspace: shared-data
+  #  - name: build-cache
+  #    workspace: build-cache
+  #  taskSpec:
+  #    steps:
+  #    - name: unit-test
+  #      image: $(params.builder-image)
+  #      script: |
+  #        #!/usr/bin/env bash
+  #        set -ex
+  #        git config --global --add safe.directory /workspace/source
+  #        cd $(workspaces.source.path)
+  #        export PATH=$PATH:/go/bin
+  #        export GOMODCACHE=$(workspaces.build-cache.path)/go-mod-cache
+  #        export GOCACHE=$(workspaces.build-cache.path)/build-cache
+  #        make go-unit-tests
+  - name: scanner-bundle
+    runAfter:
+    - fetch-source
+    workspaces:
+    - name: source
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: scanner-bundle
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          unzip /bundle.zip
+  - name: npm-install
+    runAfter:
+    - fetch-source
+    - setup-aws-credentials
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      results:
+      - name: cache-fetched
+        description: Whether cache was fetched (true/false)
+      steps:
+      - name: cache-fetch
+        ref:
+          name: cache-fetch
+        params:
+        - name: PATTERNS
+          value: ["**/package.json"]
+        - name: SOURCE
+          value: "s3://npm-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/npm-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/source"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: INSECURE
+          value: "true"
+      - name: npm-install
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          npm config set cache $(workspaces.shared-data.path)/npm-cache
+          cd $(workspaces.shared-data.path)/source/ui/apps/platform
+          npm ci
+      - name: cache-upload
+        ref:
+          name: cache-upload
+        params:
+        - name: PATTERNS
+          value: ["**/package.json"]
+        - name: TARGET
+          value: "s3://npm-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/npm-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/source"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: FETCHED
+          value: "$(steps.cache-fetch.results.fetched)"
+      - name: output-result
+        image: $(params.builder-image)
+        env:
+        - name: CACHE_FETCH_RESULT_PATH
+          value: "$(steps.cache-fetch.results.fetched.path)"
+        script: |
+          #!/bin/sh
+          # Pass through the fetched result from cache-fetch step
+          if [ -f "$CACHE_FETCH_RESULT_PATH" ]; then
+            cp "$CACHE_FETCH_RESULT_PATH" "$(results.cache-fetched.path)"
+          else
+            echo -n "false" > "$(results.cache-fetched.path)"
+          fi
+  - name: download
+    runAfter:
+      - fetch-source
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: download
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.output.path)/source
+          export PATH=$PATH:/go/bin
+          mkdir data
+          make download
+  - name: go-mod-tidy
+    runAfter:
+    - fetch-source
+    - setup-aws-credentials
+    - fetch-scanner
+    - fetch-collector
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      results:
+      - name: gomod-cache-fetched
+        description: Whether go-mod-cache was fetched (true/false)
+      steps:
+      - name: fetch-gomod-cache
+        ref:
+          name: cache-fetch
+        params:
+        - name: PATTERNS
+          value: ["**/go.mod"]
+        - name: SOURCE
+          value: "s3://go-mod-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/go-mod-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/source"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: INSECURE
+          value: "true"
+      - name: go-mod-tidy
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          mkdir -p $(workspaces.shared-data.path)/build-cache
+          cd $(workspaces.shared-data.path)/source
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/go-mod-cache GOCACHE=$(workspaces.shared-data.path)/build-cache /go/bin/go mod tidy
+      - name: put-gomod-cache
+        ref:
+          name: cache-upload
+        params:
+        - name: PATTERNS
+          value: ["**/go.mod"]
+        - name: TARGET
+          value: "s3://go-mod-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/go-mod-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/source"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: FETCHED
+          value: "$(steps.fetch-gomod-cache.results.fetched)"
+      - name: output-gomod-result
+        image: $(params.builder-image)
+        env:
+        - name: CACHE_FETCH_RESULT_PATH
+          value: "$(steps.fetch-gomod-cache.results.fetched.path)"
+        script: |
+          #!/bin/sh
+          if [ -f "$CACHE_FETCH_RESULT_PATH" ]; then
+            cp "$CACHE_FETCH_RESULT_PATH" "$(results.gomod-cache-fetched.path)"
+          else
+            echo -n "false" > "$(results.gomod-cache-fetched.path)"
+          fi
+  - name: gendocs
+    runAfter:
+    - go-mod-tidy
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      results:
+      - name: go-cache-fetched
+        description: Whether go-cache was fetched (true/false)
+      steps:
+      - name: fetch-go-cache
+        ref:
+          name: cache-fetch
+        params:
+        - name: PATTERNS
+          value: ["**/go.mod"]
+        - name: SOURCE
+          value: "s3://go-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/go-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/source"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: INSECURE
+          value: "true"
+      - name: prep
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          export GOMODCACHE=$(workspaces.shared-data.path)/go-mod-cache
+          export GOCACHE=$(workspaces.shared-data.path)/go-cache
+          make image/rhel/docs/api/v1/swagger.json image/rhel/docs/api/v2/swagger.json
+          npm exec -- swagger2openapi ./image/rhel/docs/api/v1/swagger.json -o ./image/rhel/docs/api/v1/openapi.json
+          npm exec -- swagger2openapi ./image/rhel/docs/api/v2/swagger.json -o ./image/rhel/docs/api/v2/openapi.json
+      - name: swagger-codegen
+        image: swaggerapi/swagger-codegen-cli:2.4.43
+        script: |
+          #!/usr/bin/env sh
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          java -jar /opt/swagger-codegen-cli/swagger-codegen-cli.jar generate -l html2 -i image/rhel/docs/api/v1/swagger.json -o image/rhel/docs/api/v1/reference
+      - name: put-go-cache
+        ref:
+          name: cache-upload
+        params:
+        - name: PATTERNS
+          value: ["**/go.mod"]
+        - name: TARGET
+          value: "s3://go-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/go-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/source"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: FETCHED
+          value: "$(steps.fetch-go-cache.results.fetched)"
+      - name: output-go-result
+        image: $(params.builder-image)
+        env:
+        - name: CACHE_FETCH_RESULT_PATH
+          value: "$(steps.fetch-go-cache.results.fetched.path)"
+        script: |
+          #!/bin/sh
+          if [ -f "$CACHE_FETCH_RESULT_PATH" ]; then
+            cp "$CACHE_FETCH_RESULT_PATH" "$(results.go-cache-fetched.path)"
+          else
+            echo -n "false" > "$(results.go-cache-fetched.path)"
+          fi
+  - name: build-stackrox-go-binaries
+    runAfter:
+    - gendocs
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: build-go-binaries
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/go-mod-cache GOCACHE=$(workspaces.shared-data.path)/go-cache make central secured-cluster bin/installer bin/operator
+      - name: put-go-cache
+        ref:
+          name: cache-upload
+        params:
+        - name: PATTERNS
+          value: ["**/go.mod"]
+        - name: TARGET
+          value: "s3://go-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/go-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/source"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: FETCHED
+          value: "$(tasks.gendocs.results.go-cache-fetched)"
+  # - name: build-collector
+  #   runAfter:
+  #   - fetch-collector
+  #   workspaces:
+  #   - name: shared-data
+  #     workspace: shared-data
+  #   taskRef:
+  #     name: collector-build
+  #   params:
+  #   - name: COLLECTOR_BUILDER_TAG
+  #     value: $(params.collector-builder-tag)
+  #   - name: REGISTRY
+  #     value: $(params.registry)
+  - name: build-scanner-v2
+    runAfter:
+    - fetch-scanner
+    - setup-aws-credentials
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      results:
+      - name: scanner-mod-cache-fetched
+        description: Whether scanner-mod-cache was fetched (true/false)
+      - name: scanner-cache-fetched
+        description: Whether scanner-cache was fetched (true/false)
+      steps:
+      - name: fetch-scanner-mod-cache
+        ref:
+          name: cache-fetch
+        params:
+        - name: PATTERNS
+          value: ["**/scannerv2/go.mod"]
+        - name: SOURCE
+          value: "s3://scanner-mod-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/scanner-mod-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/scannerv2"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: INSECURE
+          value: "true"
+      - name: fetch-scanner-cache
+        ref:
+          name: cache-fetch
+        params:
+        - name: PATTERNS
+          value: ["**/scannerv2/go.mod"]
+        - name: SOURCE
+          value: "s3://scanner-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/scanner-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/scannerv2"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: INSECURE
+          value: "true"
+      - name: build-updater
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/scannerv2
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/scanner-mod-cache GOCACHE=$(workspaces.shared-data.path)/scanner-cache go build -trimpath -o ./bin/updater ./cmd/updater
+          mkdir -p ../source/bin
+          cp ./bin/updater ../source/bin/
+      - name: build-scanner-v2
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/scannerv2
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/scanner-mod-cache GOCACHE=$(workspaces.shared-data.path)/scanner-cache go build -trimpath -ldflags="-X github.com/stackrox/scanner/pkg/version.Version=$(shell git describe --tags --abbrev=10 --dirty --long)" -o image/scanner/bin/scanner ./cmd/clair
+          cp ./image/scanner/bin/scanner ../source/bin/
+      - name: put-scanner-mod-cache
+        ref:
+          name: cache-upload
+        params:
+        - name: PATTERNS
+          value: ["**/scannerv2/go.mod"]
+        - name: TARGET
+          value: "s3://scanner-mod-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/scanner-mod-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/scannerv2"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: FETCHED
+          value: "$(steps.fetch-scanner-mod-cache.results.fetched)"
+      - name: put-scanner-cache
+        ref:
+          name: cache-upload
+        params:
+        - name: PATTERNS
+          value: ["**/scannerv2/go.mod"]
+        - name: TARGET
+          value: "s3://scanner-cache/{{hash}}"
+        - name: CACHE_PATH
+          value: "$(workspaces.shared-data.path)/scanner-cache"
+        - name: WORKING_DIR
+          value: "$(workspaces.shared-data.path)/scannerv2"
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: "$(workspaces.shared-data.path)/.aws/credentials"
+        - name: AWS_CONFIG_FILE
+          value: "$(workspaces.shared-data.path)/.aws/config"
+        - name: BLOB_QUERY_PARAMS
+          value: "?endpoint=http://minio:9000&disable_https=true&use_path_style=true"
+        - name: FETCHED
+          value: "$(steps.fetch-scanner-cache.results.fetched)"
+      - name: output-scanner-mod-result
+        image: $(params.builder-image)
+        env:
+        - name: CACHE_FETCH_RESULT_PATH
+          value: "$(steps.fetch-scanner-mod-cache.results.fetched.path)"
+        script: |
+          #!/bin/sh
+          if [ -f "$CACHE_FETCH_RESULT_PATH" ]; then
+            cp "$CACHE_FETCH_RESULT_PATH" "$(results.scanner-mod-cache-fetched.path)"
+          else
+            echo -n "false" > "$(results.scanner-mod-cache-fetched.path)"
+          fi
+      - name: output-scanner-result
+        image: $(params.builder-image)
+        env:
+        - name: CACHE_FETCH_RESULT_PATH
+          value: "$(steps.fetch-scanner-cache.results.fetched.path)"
+        script: |
+          #!/bin/sh
+          if [ -f "$CACHE_FETCH_RESULT_PATH" ]; then
+            cp "$CACHE_FETCH_RESULT_PATH" "$(results.scanner-cache-fetched.path)"
+          else
+            echo -n "false" > "$(results.scanner-cache-fetched.path)"
+          fi
+  - name: get-git-commit
+    runAfter:
+    - build-scanner-v2
+    - gendocs
+    - npm-install
+    # - build-collector
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      results:
+      - name: git-commit
+        description: Short git commit hash
+      steps:
+      - name: get-commit
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          echo "Git commit: $GIT_COMMIT"
+          echo -n "$GIT_COMMIT" | tee $(results.git-commit.path)
+  - name: build-image
+    runAfter:
+    - get-git-commit
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: dockerconfig
+      workspace: shared-data
+    taskRef:
+      name: buildah
+    params:
+    - name: IMAGE
+      value: kind-registry:5000/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)
+    - name: PUSH_EXTRA_ARGS
+      value: "--tls-verify=false"
+    - name: CONTEXT
+      value: ./source
+  - name: deploy-stackrox
+    runAfter:
+    - build-image
+    taskSpec:
+      steps:
+      - name: deploy-stackrox
+        image: kind-registry:5000/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)
+        command:
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          config_file=$(mktemp)
+          # namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          cat << EOF > "$config_file"
+          namespace: stackrox
+          scannerV4: true
+          images:
+          - scannerDb: "localhost:5001/stackrox/scanner-db:latest"
+          - scannerv4Db: "localhost:5001/stackrox/scanner-v4-db:latest"
+          - centralDb: "localhost:5001/stackrox/central-db:latest"
+          - admissionControl: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - sensor: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - configController: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - central: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - scanner: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - scannerv4: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - collector: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          EOF
+          /stackrox/installer -conf "$config_file" apply central
+          kubectl wait --for=condition=Available --timeout=120s deploy/central
+          /stackrox/installer -conf "$config_file" apply crs
+          /stackrox/installer -conf "$config_file" apply securedcluster
