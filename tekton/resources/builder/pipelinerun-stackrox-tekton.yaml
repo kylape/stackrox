@@ -1,0 +1,47 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: stackrox-tekton-
+spec:
+  pipelineRef:
+    name: stackrox-tekton
+  taskRunTemplate:
+    podTemplate:
+      env:
+      - name: DOCKER_CONFIG
+        value: /tmp/.docker
+      - name: HOME
+        value: /tmp
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 0
+        fsGroup: 0
+  workspaces:
+  - name: shared-data
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 8Gi
+  - name: docker-credentials
+    secret:
+      secretName: klape-pull-secret
+  params:
+  - name: repo-url
+    value: https://github.com/kylape/stackrox-tekton.git
+  - name: revision
+    value: main
+  - name: platforms
+    value: linux/arm64
+  - name: push-args
+    value: --all
+  - name: output-image
+    value: quay.io/klape/stackrox-builder:latest-arm64
+  taskRunSpecs:
+  - pipelineTaskName: build-image
+    podTemplate:
+      securityContext:
+        runAsUser: 0
