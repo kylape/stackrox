@@ -1,0 +1,37 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: vulma-
+spec:
+  # serviceAccountName: pipeline-sa
+  pipelineRef:
+    name: vulma
+  taskRunTemplate:
+    podTemplate:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 0
+        fsGroup: 0
+  workspaces:
+  - name: dockerconfig
+    secret:
+      secretName: klape-opaque-dockerconfig
+  - name: shared-data
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+  params:
+  - name: repo-url
+    value: https://github.com/Molter73/vulma.git
+  - name: revision
+    value: main
+  taskRunSpecs:
+  - pipelineTaskName: build-image
+    podTemplate:
+      securityContext:
+        runAsUser: 0
