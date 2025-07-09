@@ -1,0 +1,131 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: stackrox-deploy-test
+spec:
+  description: |
+    Minimal pipeline to test deploy task - builds installer binary and deploys
+  params:
+  - name: repo-url
+    type: string
+  - name: revision
+    type: string
+  - name: builder-image
+    type: string
+  workspaces:
+  - name: shared-data
+  tasks:
+  - name: setup-aws-credentials
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: setup-aws-credentials
+  - name: fetch-source
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskRef:
+      name: git-clone-custom
+    params:
+    - name: url
+      value: $(params.repo-url)
+    - name: submodules
+      value: "false"
+    - name: revision
+      value: $(params.revision)
+    - name: subdirectory
+      value: source
+    - name: builder-image
+      value: $(params.builder-image)
+  - name: fetch-gomod-cache
+    runAfter:
+    - fetch-source
+    - setup-aws-credentials
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: fetch-cache-v2
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: go.mod
+    - name: BUCKET_NAME
+      value: go-mod-cache
+  - name: fetch-go-cache
+    runAfter:
+    - fetch-gomod-cache
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: fetch-cache-v2
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: go.mod
+    - name: BUCKET_NAME
+      value: go-cache
+  - name: build-installer
+    runAfter:
+    - fetch-go-cache
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: build-installer
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/go-mod-cache GOCACHE=$(workspaces.shared-data.path)/go-cache make bin/installer
+  - name: deploy-stackrox
+    runAfter:
+    - build-installer
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: deploy-stackrox
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          
+          # Install kubectl with checksum validation
+          cd /tmp
+          KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/arm64/kubectl"
+          curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/arm64/kubectl.sha256"
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          chmod +x kubectl
+          export PATH="/tmp:$PATH"
+          
+          cd $(workspaces.shared-data.path)/source
+          
+          # Get git commit hash for image tag
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          echo "Using git commit hash: $GIT_COMMIT"
+          
+          config_file=$(mktemp)
+          namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          cat << EOF > "$config_file"
+          namespace: $namespace
+          scannerV4: true
+          images:
+            scannerDb: "localhost:5001/stackrox/scanner-db:$GIT_COMMIT"
+            scannerv4Db: "localhost:5001/stackrox/scanner-v4-db:$GIT_COMMIT"
+            centralDb: "localhost:5001/stackrox/central-db:$GIT_COMMIT"
+          EOF
+          ./bin/installer -conf "$config_file" apply central
+          kubectl wait --for=condition=Available --timeout=120s deploy/central
+          ./bin/installer -conf "$config_file" apply crs
+          ./bin/installer -conf "$config_file" apply securedcluster
