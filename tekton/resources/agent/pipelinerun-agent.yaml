@@ -1,0 +1,44 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: stackrox-agent-
+spec:
+  pipelineRef:
+    name: stackrox-agent
+  taskRunTemplate:
+    podTemplate:
+      env:
+      - name: DOCKER_CONFIG
+        value: /tmp/.docker
+      - name: HOME
+        value: /tmp
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 0
+        fsGroup: 0
+  workspaces:
+  - name: dockerconfig
+    secret:
+      secretName: klape-opaque-dockerconfig
+  - name: shared-data
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+  params:
+  - name: builder-image
+    # value: localhost:5001/stackrox/stackrox-tekton:latest
+    value: quay.io/klape/stackrox-builder:latest-arm64
+  - name: repo-url
+    value: https://github.com/stackrox/stackrox.git
+  - name: revision
+    value: vmvm
+  taskRunSpecs:
+  - pipelineTaskName: build-agent-image
+    podTemplate:
+      securityContext:
+        runAsUser: 0

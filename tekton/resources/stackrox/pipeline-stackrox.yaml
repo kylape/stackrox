@@ -1,0 +1,517 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: stackrox
+spec:
+  description: | 
+    This pipeline clones a git repo, builds a Docker image with Kaniko and
+    pushes it to a registry
+  params:
+  - name: repo-url
+    type: string
+  - name: revision
+    type: string
+  - name: builder-image
+    type: string
+  - name: collector-builder-tag
+    type: string
+    default: latest
+  - name: registry
+    type: string
+    default: kind-registry:5000
+  workspaces:
+  - name: shared-data
+  tasks:
+  - name: mock-docker-config
+    workspaces:
+    - name: source
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: scanner-bundle
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          mkdir -p $(workspaces.source.path)/.docker
+          echo '{}' > $(workspaces.source.path)/config.json
+  - name: fetch-source
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskRef:
+      name: git-clone
+    params:
+    - name: url
+      value: $(params.repo-url)
+    - name: submodules
+      value: "false"
+    - name: revision
+      value: $(params.revision)
+    - name: subdirectory
+      value: source
+  - name: read-versions
+    runAfter:
+    - fetch-source
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      results:
+      - name: scanner-version
+        description: Scanner version from SCANNER_VERSION file
+      - name: collector-version
+        description: Collector version from COLLECTOR_VERSION file
+      steps:
+      - name: read-versions
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          #
+          # Read scanner version and parse if it's git describe format
+          scanner_version_raw=$(cat SCANNER_VERSION | tr -d '\n')
+          echo "Raw scanner version: $scanner_version_raw"
+
+          # Check if scanner version is in git describe format and map to appropriate branch/tag
+          if [[ "$scanner_version_raw" =~ ^2\.37 ]]; then
+            # Scanner version 2.37.x maps to release-2.37 branch
+            scanner_version="release-2.37"
+            echo "Mapped scanner version $scanner_version_raw to branch: $scanner_version"
+          elif [[ "$scanner_version_raw" =~ -g([a-f0-9]+)$ ]]; then
+            # For other git describe formats, use release-2.35 as fallback
+            scanner_version="release-2.35"
+            echo "Using fallback scanner branch for git describe format: $scanner_version"
+          else
+            # Use as-is if it doesn't match git describe format
+            scanner_version="$scanner_version_raw"
+            echo "Using scanner version as-is: $scanner_version"
+          fi
+          echo -n "$scanner_version" | tee $(results.scanner-version.path)
+
+          # Handle collector version - for 3.22.x series, map to appropriate branch
+          collector_version_raw=$(cat COLLECTOR_VERSION | tr -d '\n')
+          if [[ "$collector_version_raw" =~ ^3\.22 ]]; then
+            # Collector version 3.22.x maps to release-3.22 branch
+            collector_version="release-3.22"
+            echo "Mapped collector version $collector_version_raw to branch: $collector_version"
+          elif [[ "$collector_version_raw" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Try version without prefix first
+            collector_version="$collector_version_raw"
+            echo "Using collector version as-is: $collector_version"
+          else
+            collector_version="$collector_version_raw"
+            echo "Using collector version as-is: $collector_version"
+          fi
+          echo -n "$collector_version" | tee $(results.collector-version.path)
+  - name: fetch-scanner
+    runAfter:
+    - read-versions
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskRef:
+      name: git-clone
+    params:
+    - name: url
+      value: "https://github.com/stackrox/scanner"
+    - name: revision
+      value: "$(tasks.read-versions.results.scanner-version)"
+    - name: subdirectory
+      value: scannerv2
+    - name: depth
+      value: "0"
+  - name: fetch-collector
+    runAfter:
+    - read-versions
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskRef:
+      name: git-clone
+    params:
+    - name: url
+      value: "https://github.com/stackrox/collector"
+    - name: revision
+      value: "$(tasks.read-versions.results.collector-version)"
+    - name: subdirectory
+      value: collector
+  #- name: unit-test
+  #  runAfter:
+  #  - go-mod-tidy
+  #  workspaces:
+  #  - name: source
+  #    workspace: shared-data
+  #  - name: build-cache
+  #    workspace: build-cache
+  #  taskSpec:
+  #    steps:
+  #    - name: unit-test
+  #      image: $(params.builder-image)
+  #      script: |
+  #        #!/usr/bin/env bash
+  #        set -ex
+  #        git config --global --add safe.directory /workspace/source
+  #        cd $(workspaces.source.path)
+  #        export PATH=$PATH:/go/bin
+  #        export GOMODCACHE=$(workspaces.build-cache.path)/go-mod-cache
+  #        export GOCACHE=$(workspaces.build-cache.path)/build-cache
+  #        make go-unit-tests
+  - name: scanner-bundle
+    runAfter:
+    - fetch-source
+    workspaces:
+    - name: source
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: scanner-bundle
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          unzip /bundle.zip
+  - name: fetch-npm-cache
+    runAfter:
+    - fetch-source
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: fetch-cache
+    params:
+    - name: HASHED_FILE_PATH
+      value: ui/apps/platform/package.json
+    - name: BUCKET_NAME
+      value: npm-cache
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+  - name: npm-install
+    runAfter:
+    - fetch-npm-cache
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: npm-install
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          npm config set cache $(workspaces.shared-data.path)/npm-cache
+          cd $(workspaces.shared-data.path)/source/ui/apps/platform
+          npm ci
+  - name: put-npm-cache
+    runAfter:
+    - npm-install
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: put-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: ui/apps/platform/package.json
+    - name: BUCKET_NAME
+      value: npm-cache
+  - name: download
+    runAfter:
+      - fetch-source
+    workspaces:
+    - name: output
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: download
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.output.path)/source
+          export PATH=$PATH:/go/bin
+          mkdir data
+          make download
+  - name: fetch-gomod-cache
+    runAfter:
+    - fetch-source
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: fetch-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: go.mod
+    - name: BUCKET_NAME
+      value: go-mod-cache
+  - name: fetch-go-cache
+    runAfter:
+    - fetch-gomod-cache
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: fetch-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: go.mod
+    - name: BUCKET_NAME
+      value: go-cache
+  - name: go-mod-tidy
+    runAfter:
+    - fetch-go-cache
+    - fetch-scanner
+    - fetch-collector
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: go-mod-tidy
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          mkdir -p $(workspaces.shared-data.path)/build-cache
+          cd $(workspaces.shared-data.path)/source
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/go-mod-cache GOCACHE=$(workspaces.shared-data.path)/build-cache /go/bin/go mod tidy
+  - name: gendocs
+    runAfter:
+    - go-mod-tidy
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: prep
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          export GOMODCACHE=$(workspaces.shared-data.path)/go-mod-cache
+          export GOCACHE=$(workspaces.shared-data.path)/build-cache
+          make image/rhel/docs/api/v1/swagger.json image/rhel/docs/api/v2/swagger.json
+          npm exec -- swagger2openapi ./image/rhel/docs/api/v1/swagger.json -o ./image/rhel/docs/api/v1/openapi.json
+          npm exec -- swagger2openapi ./image/rhel/docs/api/v2/swagger.json -o ./image/rhel/docs/api/v2/openapi.json
+      - name: swagger-codegen
+        image: swaggerapi/swagger-codegen-cli:2.4.43
+        script: |
+          #!/usr/bin/env sh
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          java -jar /opt/swagger-codegen-cli/swagger-codegen-cli.jar generate -l html2 -i image/rhel/docs/api/v1/swagger.json -o image/rhel/docs/api/v1/reference
+  - name: build-stackrox-go-binaries
+    runAfter:
+    - go-mod-tidy
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: build-go-binaries
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/go-mod-cache GOCACHE=$(workspaces.shared-data.path)/go-cache make central secured-cluster bin/installer bin/operator
+  - name: put-go-cache
+    runAfter:
+    - gendocs
+    - build-stackrox-go-binaries
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: put-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: go.mod
+    - name: BUCKET_NAME
+      value: go-cache
+  - name: put-gomod-cache
+    runAfter:
+    - put-go-cache
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: put-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: go.mod
+    - name: BUCKET_NAME
+      value: go-mod-cache
+  # - name: build-collector
+  #   runAfter:
+  #   - fetch-collector
+  #   workspaces:
+  #   - name: shared-data
+  #     workspace: shared-data
+  #   taskRef:
+  #     name: collector-build
+  #   params:
+  #   - name: COLLECTOR_BUILDER_TAG
+  #     value: $(params.collector-builder-tag)
+  #   - name: REGISTRY
+  #     value: $(params.registry)
+  - name: fetch-scanner-mod-cache
+    runAfter:
+    - fetch-scanner
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: fetch-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: scannerv2/go.mod
+    - name: BUCKET_NAME
+      value: scanner-mod-cache
+  - name: fetch-scanner-cache
+    runAfter:
+    - fetch-scanner-mod-cache
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: fetch-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: scannerv2/go.mod
+    - name: BUCKET_NAME
+      value: scanner-cache
+  - name: build-scanner-v2
+    runAfter:
+    - fetch-scanner-cache
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      steps:
+      - name: build-updater
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/scannerv2
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/scanner-mod-cache GOCACHE=$(workspaces.shared-data.path)/scanner-cache go build -trimpath -o ./bin/updater ./cmd/updater
+          mkdir -p ../source/bin
+          cp ./bin/updater ../source/bin/
+      - name: build-scanner-v2
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/scannerv2
+          export PATH=$PATH:/go/bin
+          export GOARCH=arm64
+          GOMODCACHE=$(workspaces.shared-data.path)/scanner-mod-cache GOCACHE=$(workspaces.shared-data.path)/scanner-cache go build -trimpath -ldflags="-X github.com/stackrox/scanner/pkg/version.Version=$(shell git describe --tags --abbrev=10 --dirty --long)" -o image/scanner/bin/scanner ./cmd/clair
+          cp ./image/scanner/bin/scanner ../source/bin/
+      - name: init-submodule
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          git submodule update --init --recursive scannerv2
+  - name: put-scanner-mod-cache
+    runAfter:
+    - build-scanner-v2
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: put-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: scannerv2/go.mod
+    - name: BUCKET_NAME
+      value: scanner-mod-cache
+  - name: put-scanner-cache
+    runAfter:
+    - put-scanner-mod-cache
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: put-cache
+    params:
+    - name: BUILDER_IMAGE
+      value: $(params.builder-image)
+    - name: HASHED_FILE_PATH
+      value: scannerv2/go.mod
+    - name: BUCKET_NAME
+      value: scanner-cache
+  - name: build-image
+    runAfter:
+    - put-scanner-cache
+    - put-gomod-cache
+    - put-npm-cache
+    # - build-collector
+    workspaces:
+    - name: source
+      workspace: shared-data
+    - name: dockerconfig
+      workspace: shared-data
+    taskRef:
+      name: buildah
+    params:
+    - name: IMAGE
+      value: kind-registry:5000/stackrox/stackrox:latest
+    - name: PUSH_EXTRA_ARGS
+      value: "--tls-verify=false"
+    - name: CONTEXT
+      value: ./source
+  - name: deploy-stackrox
+    runAfter:
+    - build-image
+    taskSpec:
+      steps:
+      - name: deploy-stackrox
+        image: localhost:5001/stackrox/stackrox:latest
+        command:
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          config_file=$(mktemp)
+          namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          cat << EOF > "$config_file"
+          namespace: $namespace
+          scannerV4: true
+          images:
+            scannerDb: "localhost:5001/stackrox/scanner-db:latest"
+            scannerv4Db: "localhost:5001/stackrox/scanner-v4-db:latest"
+            centralDb: "localhost:5001/stackrox/central-db:latest"
+          EOF
+          /stackrox/installer -conf "$config_file" apply central
+          kubectl wait --for=condition=Available --timeout=120s deploy/central
+          /stackrox/installer -conf "$config_file" apply crs
+          /stackrox/installer -conf "$config_file" apply securedcluster
