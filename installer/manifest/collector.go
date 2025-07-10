@@ -113,6 +113,30 @@ func (g CollectorGenerator) genDaemonSet(ctx context.Context, m *manifestGenerat
 							MountPath: "/etc/stackrox",
 							ReadOnly:  true,
 						}},
+					}, {
+						Name:            "vsock-listener",
+						Image:           m.Config.Images.VSOCKListener,
+						ImagePullPolicy: v1.PullAlways,
+						Command:         []string{"/stackrox/vsock-listener"},
+						SecurityContext: &v1.SecurityContext{
+							Privileged:             &trueBool,
+							ReadOnlyRootFilesystem: &trueBool,
+						},
+						Env: []v1.EnvVar{{
+							Name:  "SENSOR_ENDPOINT",
+							Value: "sensor:443",
+						}, {
+							Name:  "VSOCK_PORT",
+							Value: "514",
+						}},
+						VolumeMounts: []v1.VolumeMount{{
+							Name:      "vhost-vsock",
+							MountPath: "/dev/vhost-vsock",
+						}, {
+							Name:      "certs",
+							MountPath: "/run/secrets/stackrox.io/certs",
+							ReadOnly:  true,
+						}},
 					}},
 					Volumes: []v1.Volume{{
 						Name: "proc-ro",
@@ -167,6 +191,13 @@ func (g CollectorGenerator) genDaemonSet(ctx context.Context, m *manifestGenerat
 								DefaultMode: &ReadOnlyMode,
 								SecretName:  "tls-cert-collector",
 								Optional:    &trueBool,
+							},
+						},
+					}, {
+						Name: "vhost-vsock",
+						VolumeSource: v1.VolumeSource{
+							HostPath: &v1.HostPathVolumeSource{
+								Path: "/dev/vhost-vsock",
 							},
 						},
 					}},

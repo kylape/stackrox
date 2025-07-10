@@ -931,6 +931,9 @@ bin/updater: $(shell find scannerv2/ -name *.go)
 bin/agent: $(shell find agent/ -name *.go) ${pkg}
 	CGO_ENABLED=0 go build $(DEV_LD_FLAGS) -o $@ ./agent
 
+bin/vsock-listener: $(shell find vsock-listener/ -name *.go) ${pkg}
+	CGO_ENABLED=0 go build $(DEV_LD_FLAGS) -o $@ ./vsock-listener
+
 bin/collector: $(shell find collector/ -name *.go) $(shell find collector/ -name *.cpp)
 	cmake --preset=vcpkg collector 
 	cmake --build collector/cmake-build/vcpkg -j$(nproc)
