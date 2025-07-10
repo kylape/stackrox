@@ -11,6 +11,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `make style` - Apply and check style standards (Go and JavaScript)
 - `make ui-lint` - Lint UI code
 
+### Protobuf
+
+* Generate protobuf artifacts: `make proto-generated-srcs`
+
 ### Individual Binary Builds
 These targets build specific components as local binaries in the `bin/` directory, useful for faster development iteration:
 
@@ -126,6 +130,11 @@ docker run --rm --env POSTGRES_USER="$USER" --env POSTGRES_HOST_AUTH_METHOD=trus
 - `COLLECTOR_VERSION` - Collector component version
 - `go.mod` - Go dependencies (requires Go 1.23.4+)
 - `installer.yaml` - Installer configuration (contains namespace setting)
+
+## Code Style and Conventions
+
+### Go Code Conventions
+* Complex if statements with assignment should use the convention where the test expression is `err != nil`, *not* `err == nil`
 
 ## User-Specific Instructions
 
