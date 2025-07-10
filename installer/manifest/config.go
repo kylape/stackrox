@@ -33,6 +33,7 @@ type CRS struct {
 type Images struct {
 	AdmissionControl string `yaml:"admissionControl"`
 	Sensor           string `yaml:"sensor"`
+	Collector        string `yaml:"collector"`
 	ConfigController string `yaml:"configController"`
 	Central          string `yaml:"central"`
 	CentralDB        string `yaml:"centralDb"`
@@ -40,7 +41,7 @@ type Images struct {
 	ScannerDB        string `yaml:"scannerDb"`
 	ScannerV4        string `yaml:"scannerv4"`
 	ScannerV4DB      string `yaml:"scannerv4Db"`
-	Collector        string `yaml:"collector"`
+	VSOCKListener    string `yaml:"vsockListener"`
 }
 
 var DefaultConfig Config = Config{
@@ -52,11 +53,12 @@ var DefaultConfig Config = Config{
 	Images: Images{
 		AdmissionControl: localStackroxImage,
 		Sensor:           localStackroxImage,
+		Collector:        localStackroxImage,
 		ConfigController: localStackroxImage,
 		Central:          localStackroxImage,
 		Scanner:          localStackroxImage,
 		ScannerV4:        localStackroxImage,
-		Collector:        localStackroxImage,
+		VSOCKListener:    localStackroxImage,
 		CentralDB:        localDbImage,
 		ScannerDB:        localDbImage,
 		ScannerV4DB:      localDbImage,

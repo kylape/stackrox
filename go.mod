@@ -158,6 +158,7 @@ require (
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.30.0
 	helm.sh/helm/v3 v3.18.4
@@ -170,6 +171,7 @@ require (
 	k8s.io/kubectl v0.33.2
 	k8s.io/kubelet v0.32.1
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
+	kubevirt.io/api v1.5.2
 	sigs.k8s.io/controller-runtime v0.21.0
 	sigs.k8s.io/controller-tools v0.18.0
 	sigs.k8s.io/e2e-framework v0.6.0
@@ -404,6 +406,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.2.1 // indirect
 	github.com/openshift-online/ocm-api-model/clientapi v0.0.422 // indirect
 	github.com/openshift-online/ocm-api-model/model v0.0.422 // indirect
+	github.com/openshift/custom-resource-status v1.1.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/operator-framework/operator-lib v0.17.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
@@ -494,13 +497,14 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/code-generator v0.33.2 // indirect
 	k8s.io/component-base v0.33.2 // indirect
 	k8s.io/component-helpers v0.33.2 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250207200755-1244d31929d7 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250701173324-9bd5c66d9911 // indirect
+	kubevirt.io/containerized-data-importer-api v1.60.3-0.20241105012228-50fbed985de9 // indirect
+	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	modernc.org/libc v1.65.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
