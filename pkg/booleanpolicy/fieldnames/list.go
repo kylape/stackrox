@@ -82,6 +82,9 @@ var (
 	KubeUserName                   = newFieldName("Kubernetes User Name")
 	KubeUserGroups                 = newFieldName("Kubernetes User Groups")
 	SourceIPAddress                = newFieldName("Source IP Address")
+	
+	// Universal resource field for dynamic evaluation
+	KubernetesField                = newFieldName("Kubernetes Field")
 )
 
 func newFieldName(field string) string {

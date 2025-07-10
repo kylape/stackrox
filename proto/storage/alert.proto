@@ -11,7 +11,7 @@ import "storage/process_indicator.proto";
 option go_package = "./storage;storage";
 option java_package = "io.stackrox.proto.storage";
 
-// Next available tag: 24
+// Next available tag: 25
 message Alert {
   message Deployment {
     string id = 1; // @gotags: search:"Deployment ID,store,hidden" sql:"index=hash,type(uuid)"
@@ -132,6 +132,8 @@ message Alert {
     // Represents an alert on a kubernetes resource (configmaps, secrets, etc.)
     // An alert cannot be on more than one entity (deployment, container image, resource, etc.)
     Resource resource = 16;
+    // Universal reference to any Kubernetes resource - replaces resource above for new universal policies
+    ResourceReference resource_reference = 24; // @gotags: sql:"ignore-fks,ignore-index"
   }
 
   // For run-time phase alert, a maximum of 40 violations are retained.
@@ -234,6 +236,15 @@ message ListAlertDeployment {
   // This field is deprecated and can be found in CommonEntityInfo. It will be removed from here in a future release.
   string namespace_id = 8 [deprecated = true]; // This field has moved to CommonEntityInfo
   string deployment_type = 9;
+}
+
+// Universal resource reference for any Kubernetes resource
+message ResourceReference {
+  string api_version = 1;  // "v1", "networking.k8s.io/v1", etc.
+  string kind = 2;         // "ConfigMap", "Service", "Ingress", etc.
+  string namespace = 3;
+  string name = 4;
+  string uid = 5;
 }
 
 enum ViolationState {

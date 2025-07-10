@@ -13,7 +13,7 @@ option java_package = "io.stackrox.proto.storage";
 // in `config-controller/api/v1alpha1/policy_types.go` and the ToProtobuf() function
 // to account for the new field, and its conversion.
 
-//Next tag: 28
+//Next tag: 29
 message Policy {
   string id = 1; // @gotags: search:"Policy ID,store,hidden" sql:"pk,index=btree" crYaml:"-"
   // Name of the policy.  Must be unique.
@@ -77,6 +77,28 @@ message Policy {
   bool is_default = 26; // @gotags: crYaml:"isDefault"
 
   PolicySource source = 27; // @gotags: crYaml:"-"
+
+  // Specifies what type of resource this policy evaluates. If not set, defaults to deployment-like resources for backward compatibility.
+  ResourceTarget resource_target = 28; // @gotags: crYaml:"resourceTarget,omitempty"
+}
+
+message ResourceTarget {
+  oneof target {
+    DeploymentTarget deployment = 1;  // Backward compatible (default)
+    KubernetesResourceTarget kubernetes = 2;  // NEW
+  }
+}
+
+message DeploymentTarget {
+  // Empty for now, allows future deployment-specific options
+}
+
+message KubernetesResourceTarget {
+  string api_version = 1;  // "v1", "networking.k8s.io/v1", etc.
+  string kind = 2;         // "ConfigMap", "Service", "Ingress", etc.
+  
+  // Optional: limit to specific namespaces (empty = all namespaces)
+  repeated string namespaces = 3; // @gotags: crYaml:",omitempty"
 }
 
 enum PolicySource {
@@ -108,7 +130,16 @@ message PolicyGroup {
 }
 
 message PolicyValue {
-  string value = 1;
+  oneof value {
+    string value = 1;                    // Existing
+    DynamicFieldValue dynamic = 2;       // NEW
+  }
+}
+
+message DynamicFieldValue {
+  string field_path = 1;        // "spec.type", "metadata.annotations['key']"
+  string operator = 2;          // "equals", "contains", "exists", ">", "regex_match"
+  repeated string values = 3;   // Values to match against
 }
 
 enum BooleanOperator {

@@ -98,6 +98,9 @@ type manager struct {
 	alertsC chan []*storage.Alert
 
 	ownNamespace string
+
+	// Universal resource support
+	universalHandler *UniversalResourceHandler
 }
 
 // NewManager creates a new manager
@@ -302,6 +305,19 @@ func (m *manager) ProcessNewSettings(newSettings *sensor.AdmissionControlSetting
 		enforcedOps:                                   enforcedOperations,
 	}
 
+	// Initialize universal resource handler if not already done
+	if m.universalHandler == nil {
+		// For now, we'll create the handler without a real k8s client 
+		// TODO: Pass actual k8s client when available
+		m.universalHandler = NewUniversalResourceHandler(nil, newState.clusterID())
+	}
+	
+	// Set up policy set for universal resource handler
+	if m.universalHandler != nil {
+		universalPolicySet := NewUniversalPolicySet(allRuntimePolicySet)
+		m.universalHandler.SetPolicySet(universalPolicySet)
+	}
+
 	if oldState != nil && newSettings.GetCentralEndpoint() == oldState.GetCentralEndpoint() {
 		newState.centralConn = oldState.centralConn
 	} else {
@@ -361,6 +377,18 @@ func (m *manager) HandleValidate(req *admission.AdmissionRequest) (*admission.Ad
 		return nil, pkgErr.New("admission controller is disabled, not handling request")
 	}
 
+	// Check if this is a deployment-like resource or a universal resource
+	if IsDeploymentLikeKind(req.Kind.Kind) {
+		// Use existing deployment-focused evaluation
+		return m.evaluateAdmissionRequest(state, req)
+	}
+
+	// Use universal resource handler for non-deployment resources
+	if m.universalHandler != nil {
+		return m.universalHandler.HandleValidateUniversal(context.Background(), req)
+	}
+
+	// Fall back to deployment evaluation if universal handler not available
 	return m.evaluateAdmissionRequest(state, req)
 }
 

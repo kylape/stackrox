@@ -874,5 +874,17 @@ func initializeFieldMetadata() FieldMetadata {
 		[]RuntimeFieldType{}, operatorsForbidden,
 	)
 
+	// Universal dynamic field for any Kubernetes resource
+	f.registerFieldMetadata(fieldnames.KubernetesField,
+		querybuilders.ForDynamicField(),
+		nil, // No specific context fields - can apply to any resource
+		func(*validateConfiguration) *regexp.Regexp {
+			// Dynamic fields have their own validation based on operator
+			return nil
+		},
+		[]storage.EventSource{storage.EventSource_NOT_APPLICABLE, storage.EventSource_DEPLOYMENT_EVENT, storage.EventSource_AUDIT_LOG_EVENT},
+		[]RuntimeFieldType{}, // Applies to all runtime field types
+	)
+
 	return f
 }
