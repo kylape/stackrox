@@ -98,6 +98,9 @@ func (ds *datastoreImpl) CountAlerts(ctx context.Context) (int, error) {
 func (ds *datastoreImpl) UpsertAlert(ctx context.Context, alert *storage.Alert) error {
 	defer metrics.SetDatastoreFunctionDuration(time.Now(), "Alert", "UpsertAlert")
 
+	// Handle both legacy deployment_id and new resource reference
+	ds.migrateAlertToResourceReference(ctx, alert)
+
 	if ok, err := alertSAC.WriteAllowed(ctx, sacKeyForAlert(alert)...); err != nil || !ok {
 		return sac.ErrResourceAccessDenied
 	}
@@ -314,4 +317,215 @@ func (ds *DefaultStateAlertDataStoreImpl) Search(ctx context.Context, q *v1.Quer
 
 func (ds *DefaultStateAlertDataStoreImpl) Count(ctx context.Context, q *v1.Query) (int, error) {
 	return (*ds.DataStore).Count(ctx, q, true)
+}
+
+// migrateAlertToResourceReference migrates legacy deployment_id alerts to new resource reference format
+func (ds *datastoreImpl) migrateAlertToResourceReference(ctx context.Context, alert *storage.Alert) {
+	// Skip if already has resource reference
+	if alert.GetResourceReference() != nil {
+		return
+	}
+
+	// Handle legacy deployment alerts
+	if deploymentEntity := alert.GetDeployment(); deploymentEntity != nil {
+		alert.Entity = &storage.Alert_ResourceReference{
+			ResourceReference: &storage.ResourceReference{
+				ApiVersion: "apps/v1",
+				Kind:       "Deployment",
+				Namespace:  deploymentEntity.GetNamespace(),
+				Name:       deploymentEntity.GetName(),
+				Uid:        deploymentEntity.GetId(),
+			},
+		}
+		// Keep the deployment entity for backward compatibility
+		return
+	}
+
+	// Handle legacy resource alerts
+	if resourceEntity := alert.GetResource(); resourceEntity != nil {
+		alert.Entity = &storage.Alert_ResourceReference{
+			ResourceReference: &storage.ResourceReference{
+				ApiVersion: ds.getAPIVersionForResourceType(resourceEntity.GetResourceType()),
+				Kind:       ds.getKindForResourceType(resourceEntity.GetResourceType()),
+				Namespace:  resourceEntity.GetNamespace(),
+				Name:       resourceEntity.GetName(),
+				Uid:        "", // Legacy resource alerts don't have UID
+			},
+		}
+		// Keep the resource entity for backward compatibility
+		return
+	}
+}
+
+// getAPIVersionForResourceType maps legacy resource types to API versions
+func (ds *datastoreImpl) getAPIVersionForResourceType(resourceType storage.Alert_Resource_ResourceType) string {
+	switch resourceType {
+	case storage.Alert_Resource_SECRETS:
+		return "v1"
+	case storage.Alert_Resource_CONFIGMAPS:
+		return "v1"
+	case storage.Alert_Resource_NETWORK_POLICIES:
+		return "networking.k8s.io/v1"
+	case storage.Alert_Resource_CLUSTER_ROLES:
+		return "rbac.authorization.k8s.io/v1"
+	case storage.Alert_Resource_CLUSTER_ROLE_BINDINGS:
+		return "rbac.authorization.k8s.io/v1"
+	case storage.Alert_Resource_SECURITY_CONTEXT_CONSTRAINTS:
+		return "security.openshift.io/v1"
+	case storage.Alert_Resource_EGRESS_FIREWALLS:
+		return "k8s.ovn.org/v1"
+	default:
+		return "v1"
+	}
+}
+
+// getKindForResourceType maps legacy resource types to Kubernetes kinds
+func (ds *datastoreImpl) getKindForResourceType(resourceType storage.Alert_Resource_ResourceType) string {
+	switch resourceType {
+	case storage.Alert_Resource_SECRETS:
+		return "Secret"
+	case storage.Alert_Resource_CONFIGMAPS:
+		return "ConfigMap"
+	case storage.Alert_Resource_NETWORK_POLICIES:
+		return "NetworkPolicy"
+	case storage.Alert_Resource_CLUSTER_ROLES:
+		return "ClusterRole"
+	case storage.Alert_Resource_CLUSTER_ROLE_BINDINGS:
+		return "ClusterRoleBinding"
+	case storage.Alert_Resource_SECURITY_CONTEXT_CONSTRAINTS:
+		return "SecurityContextConstraints"
+	case storage.Alert_Resource_EGRESS_FIREWALLS:
+		return "EgressFirewall"
+	default:
+		return "Unknown"
+	}
+}
+
+// GetAlertsForResource returns alerts for a specific resource
+func (ds *datastoreImpl) GetAlertsForResource(ctx context.Context,
+	resource *storage.ResourceReference) ([]*storage.Alert, error) {
+	defer metrics.SetDatastoreFunctionDuration(time.Now(), "Alert", "GetAlertsForResource")
+
+	if resource == nil {
+		return nil, errors.New("resource reference is required")
+	}
+
+	// Build query for resource-specific alerts
+	query := searchCommon.NewQueryBuilder().
+		AddExactMatches(searchCommon.ResourceKind, resource.GetKind()).
+		AddExactMatches(searchCommon.ResourceName, resource.GetName()).
+		AddExactMatches(searchCommon.Namespace, resource.GetNamespace()).
+		ProtoQuery()
+
+	alerts, err := ds.SearchRawAlerts(ctx, query, false)
+	if err != nil {
+		return nil, errors.Wrap(err, "searching for resource alerts")
+	}
+
+	// Filter alerts to exact resource match (including UID if provided)
+	var matchedAlerts []*storage.Alert
+	for _, alert := range alerts {
+		if ds.alertMatchesResource(alert, resource) {
+			matchedAlerts = append(matchedAlerts, alert)
+		}
+	}
+
+	return matchedAlerts, nil
+}
+
+// GetAlertsForResourceType returns alerts for all resources of a specific type
+func (ds *datastoreImpl) GetAlertsForResourceType(ctx context.Context,
+	kind, apiVersion string) ([]*storage.Alert, error) {
+	defer metrics.SetDatastoreFunctionDuration(time.Now(), "Alert", "GetAlertsForResourceType")
+
+	query := searchCommon.NewQueryBuilder().
+		AddExactMatches(searchCommon.ResourceKind, kind).
+		ProtoQuery()
+
+	if apiVersion != "" {
+		// Add API version filter if provided
+		query = searchCommon.NewQueryBuilder().
+			AddExactMatches(searchCommon.ResourceKind, kind).
+			AddExactMatches("Resource API Version", apiVersion).
+			ProtoQuery()
+	}
+
+	return ds.SearchRawAlerts(ctx, query, false)
+}
+
+// GetAlertsForResourceInNamespace returns alerts for resources of a specific type in a namespace
+func (ds *datastoreImpl) GetAlertsForResourceInNamespace(ctx context.Context,
+	kind, apiVersion, namespace string) ([]*storage.Alert, error) {
+	defer metrics.SetDatastoreFunctionDuration(time.Now(), "Alert", "GetAlertsForResourceInNamespace")
+
+	query := searchCommon.NewQueryBuilder().
+		AddExactMatches(searchCommon.ResourceKind, kind).
+		AddExactMatches(searchCommon.Namespace, namespace).
+		ProtoQuery()
+
+	if apiVersion != "" {
+		// Add API version filter if provided
+		query = searchCommon.NewQueryBuilder().
+			AddExactMatches(searchCommon.ResourceKind, kind).
+			AddExactMatches("Resource API Version", apiVersion).
+			AddExactMatches(searchCommon.Namespace, namespace).
+			ProtoQuery()
+	}
+
+	return ds.SearchRawAlerts(ctx, query, false)
+}
+
+// alertMatchesResource checks if an alert matches a specific resource reference
+func (ds *datastoreImpl) alertMatchesResource(alert *storage.Alert, resource *storage.ResourceReference) bool {
+	alertResource := alert.GetResourceReference()
+	if alertResource == nil {
+		return false
+	}
+
+	// Check kind and name (required)
+	if alertResource.GetKind() != resource.GetKind() ||
+		alertResource.GetName() != resource.GetName() {
+		return false
+	}
+
+	// Check namespace (if specified)
+	if resource.GetNamespace() != "" &&
+		alertResource.GetNamespace() != resource.GetNamespace() {
+		return false
+	}
+
+	// Check API version (if specified)
+	if resource.GetApiVersion() != "" &&
+		alertResource.GetApiVersion() != resource.GetApiVersion() {
+		return false
+	}
+
+	// Check UID (if specified)
+	if resource.GetUid() != "" &&
+		alertResource.GetUid() != resource.GetUid() {
+		return false
+	}
+
+	return true
+}
+
+// CountAlertsForResourceType returns the count of alerts for a specific resource type
+func (ds *datastoreImpl) CountAlertsForResourceType(ctx context.Context,
+	kind, apiVersion string) (int, error) {
+	defer metrics.SetDatastoreFunctionDuration(time.Now(), "Alert", "CountAlertsForResourceType")
+
+	query := searchCommon.NewQueryBuilder().
+		AddExactMatches(searchCommon.ResourceKind, kind).
+		AddExactMatches(searchCommon.ViolationState, storage.ViolationState_ACTIVE.String()).
+		ProtoQuery()
+
+	if apiVersion != "" {
+		query = searchCommon.NewQueryBuilder().
+			AddExactMatches(searchCommon.ResourceKind, kind).
+			AddExactMatches("Resource API Version", apiVersion).
+			AddExactMatches(searchCommon.ViolationState, storage.ViolationState_ACTIVE.String()).
+			ProtoQuery()
+	}
+
+	return ds.Count(ctx, query, false)
 }

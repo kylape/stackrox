@@ -25,10 +25,31 @@ type AugmentationStrategy interface {
 // NewResourceAugmentationFactory creates a new factory instance
 func NewResourceAugmentationFactory(k8sClient kubernetes.Interface, clusterID string) *ResourceAugmentationFactory {
 	factory := &ResourceAugmentationFactory{
-		k8sClient: k8sClient,
-		clusterID: clusterID,
+		k8sClient:  k8sClient,
+		clusterID:  clusterID,
 		strategies: make(map[string]AugmentationStrategy),
 	}
+
+	// Register specialized strategies for Phase 2
+	factory.RegisterStrategy(&ConfigMapAugmentationStrategy{
+		client:    k8sClient,
+		clusterID: clusterID,
+	})
+
+	factory.RegisterStrategy(&SecretAugmentationStrategy{
+		client:    k8sClient,
+		clusterID: clusterID,
+	})
+
+	factory.RegisterStrategy(&ServiceAugmentationStrategy{
+		client:    k8sClient,
+		clusterID: clusterID,
+	})
+
+	factory.RegisterStrategy(&IngressAugmentationStrategy{
+		client:    k8sClient,
+		clusterID: clusterID,
+	})
 
 	// Register generic strategy as fallback
 	factory.RegisterStrategy(&GenericAugmentationStrategy{
@@ -41,9 +62,24 @@ func NewResourceAugmentationFactory(k8sClient kubernetes.Interface, clusterID st
 
 // RegisterStrategy registers an augmentation strategy for specific resource types
 func (raf *ResourceAugmentationFactory) RegisterStrategy(strategy AugmentationStrategy) {
-	// For now, we just store the generic strategy
-	// In future phases, we'll add kind-specific strategies
-	raf.strategies["generic"] = strategy
+	// Register strategy based on the kinds it supports
+	if strategy.SupportsKind("ConfigMap") {
+		raf.strategies["ConfigMap"] = strategy
+	}
+	if strategy.SupportsKind("Secret") {
+		raf.strategies["Secret"] = strategy
+	}
+	if strategy.SupportsKind("Service") {
+		raf.strategies["Service"] = strategy
+	}
+	if strategy.SupportsKind("Ingress") {
+		raf.strategies["Ingress"] = strategy
+	}
+
+	// Generic strategy supports all kinds
+	if _, ok := strategy.(*GenericAugmentationStrategy); ok {
+		raf.strategies["generic"] = strategy
+	}
 }
 
 // AugmentResource creates an augmented resource with context
@@ -121,7 +157,7 @@ func IsDeploymentLikeResource(resource *unstructured.Unstructured) bool {
 func GetDeploymentLikeKinds() []string {
 	return []string{
 		"Deployment",
-		"StatefulSet", 
+		"StatefulSet",
 		"DaemonSet",
 		"ReplicaSet",
 		"Pod",
