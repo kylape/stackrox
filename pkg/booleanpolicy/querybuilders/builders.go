@@ -44,9 +44,9 @@ func mapValues(group *storage.PolicyGroup, f func(string) string) []string {
 	for _, v := range group.GetValues() {
 		var mappedValue string
 		if f != nil {
-			mappedValue = f(v.GetValue())
+			mappedValue = f(v.GetStringValue())
 		} else {
-			mappedValue = v.GetValue()
+			mappedValue = v.GetStringValue()
 		}
 		out = append(out, mappedValue)
 	}
@@ -117,10 +117,10 @@ func ForFieldLabelBoolean(label search.FieldLabel, negateValue bool) QueryBuilde
 	return queryBuilderFunc(func(group *storage.PolicyGroup) []*query.FieldQuery {
 		mappedValues := make([]string, 0, len(group.GetValues()))
 		for _, value := range group.GetValues() {
-			valueStr := value.GetValue()
+			valueStr := value.GetStringValue()
 			if negateValue {
 				var err error
-				valueStr, err = negateBool(value.GetValue())
+				valueStr, err = negateBool(value.GetStringValue())
 				if err != nil {
 					return nil
 				}
@@ -148,7 +148,7 @@ func ForFieldLabelNil(label search.FieldLabel) QueryBuilder {
 		mappedValues := make([]string, 0, len(group.GetValues()))
 		negate := false
 		for _, value := range values {
-			valueStr := value.GetValue()
+			valueStr := value.GetStringValue()
 			b, err := strconv.ParseBool(valueStr)
 			if err != nil {
 				return nil

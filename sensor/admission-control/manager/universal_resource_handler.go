@@ -131,7 +131,12 @@ func (urh *UniversalResourceHandler) buildAdmissionResponse(violations []*storag
 		policy := alert.GetPolicy()
 		if policy != nil {
 			enforcementActions = append(enforcementActions, policy.GetEnforcementActions()...)
-			messages = append(messages, alert.GetViolationMessage())
+			// Get message from violations
+			for _, violation := range alert.GetViolations() {
+				if violation.GetMessage() != "" {
+					messages = append(messages, violation.GetMessage())
+				}
+			}
 		}
 	}
 

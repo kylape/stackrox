@@ -27,10 +27,10 @@ func (qb *DynamicFieldQueryBuilder) FieldQueriesForGroup(group *storage.PolicyGr
 			if fq != nil {
 				fieldQueries = append(fieldQueries, fq)
 			}
-		} else if value.GetValue() != "" {
+		} else if value.GetStringValue() != "" {
 			// Handle legacy string-encoded dynamic values for backward compatibility
 			// Format: "field=spec.type,operator=equals,value=LoadBalancer"
-			fq := qb.parseLegacyDynamicValue(value.GetValue(), group)
+			fq := qb.parseLegacyDynamicValue(value.GetStringValue(), group)
 			if fq != nil {
 				fieldQueries = append(fieldQueries, fq)
 			}
@@ -46,18 +46,17 @@ func (qb *DynamicFieldQueryBuilder) createDynamicFieldQuery(dynamicValue *storag
 	// Create a synthetic field name that encodes the dynamic nature
 	fieldName := fmt.Sprintf("dynamic.%s", dynamicValue.GetFieldPath())
 
+	// Convert storage.BooleanOperator to query.Operator
+	operator := query.Or
+	if group.GetBooleanOperator() == storage.BooleanOperator_AND {
+		operator = query.And
+	}
+
 	return &query.FieldQuery{
 		Field:    fieldName,
 		Values:   dynamicValue.GetValues(),
-		Operator: group.GetBooleanOperator(),
+		Operator: operator,
 		Negate:   group.GetNegate(),
-
-		// Store metadata for the dynamic field evaluator
-		Metadata: map[string]string{
-			"operator":   dynamicValue.GetOperator(),
-			"fieldPath":  dynamicValue.GetFieldPath(),
-			"dynamic":    "true",
-		},
 	}
 }
 
@@ -68,7 +67,7 @@ func (qb *DynamicFieldQueryBuilder) parseLegacyDynamicValue(value string, group 
 	params := parseKeyValuePairs(value)
 
 	fieldPath, hasField := params["field"]
-	operator, hasOperator := params["operator"]
+	_, hasOperator := params["operator"]
 	fieldValue, hasValue := params["value"]
 
 	if !hasField || !hasOperator {
@@ -82,17 +81,17 @@ func (qb *DynamicFieldQueryBuilder) parseLegacyDynamicValue(value string, group 
 
 	fieldName := fmt.Sprintf("dynamic.%s", fieldPath)
 
+	// Convert storage.BooleanOperator to query.Operator
+	queryOperator := query.Or
+	if group.GetBooleanOperator() == storage.BooleanOperator_AND {
+		queryOperator = query.And
+	}
+
 	return &query.FieldQuery{
 		Field:    fieldName,
 		Values:   values,
-		Operator: group.GetBooleanOperator(),
+		Operator: queryOperator,
 		Negate:   group.GetNegate(),
-
-		Metadata: map[string]string{
-			"operator":   operator,
-			"fieldPath":  fieldPath,
-			"dynamic":    "true",
-		},
 	}
 }
 

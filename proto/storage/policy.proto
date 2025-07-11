@@ -131,8 +131,8 @@ message PolicyGroup {
 
 message PolicyValue {
   oneof value {
-    string value = 1;                    // Existing
-    DynamicFieldValue dynamic = 2;       // NEW
+    string string_value = 1;             // Existing string value
+    DynamicFieldValue dynamic = 2;       // NEW dynamic field value
   }
 }
 

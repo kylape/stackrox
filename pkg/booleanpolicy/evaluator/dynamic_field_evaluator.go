@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/stackrox/rox/pkg/booleanpolicy/augmentedobjs"
-	"github.com/stackrox/rox/pkg/booleanpolicy/evaluator/pathutil"
 	"github.com/stackrox/rox/pkg/logging"
 )
 
@@ -48,12 +47,9 @@ func (dfe *DynamicFieldEvaluator) Evaluate(resource augmentedobjs.AugmentedResou
 
 	if matched {
 		return &Result{
-			Matches: map[string][]pathutil.PathAndValueHolder{
-				dfe.fieldPath: {
-					{
-						Path:  dfe.fieldPath,
-						Value: value,
-					},
+			Matches: []map[string][]string{
+				{
+					dfe.fieldPath: {fmt.Sprintf("%v", value)},
 				},
 			},
 		}, true

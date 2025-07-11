@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stackrox/rox/generated/storage"
@@ -54,12 +53,14 @@ func (grd *GenericResourceDetector) DetectViolation(ctx context.Context,
 	alert := &storage.Alert{
 		Id:       uuid.NewV4().String(),
 		Policy:   policy,
-		ResourceReference: &storage.ResourceReference{
-			ApiVersion: resource.GetAPIVersion(),
-			Kind:       resource.GetKind(),
-			Namespace:  resource.GetNamespace(),
-			Name:       resource.GetName(),
-			Uid:        string(resource.GetUID()),
+		Entity: &storage.Alert_ResourceReference{
+			ResourceReference: &storage.ResourceReference{
+				ApiVersion: resource.GetAPIVersion(),
+				Kind:       resource.GetKind(),
+				Namespace:  resource.GetNamespace(),
+				Name:       resource.GetName(),
+				Uid:        string(resource.GetUID()),
+			},
 		},
 		Time:         protocompat.TimestampNow(),
 		FirstOccurred: protocompat.TimestampNow(),
@@ -78,8 +79,14 @@ func (grd *GenericResourceDetector) DetectViolation(ctx context.Context,
 		alert.LifecycleStage = storage.LifecycleStage_DEPLOY
 	}
 
-	// Build violation message from policy sections
-	alert.ViolationMessage = grd.buildViolationMessage(violations, policy, resource)
+	// Build violation messages from policy sections
+	violationMessage := grd.buildViolationMessage(violations, policy, resource)
+	alert.Violations = []*storage.Alert_Violation{
+		{
+			Message: violationMessage,
+			Type:    storage.Alert_Violation_GENERIC,
+		},
+	}
 
 	return alert, nil
 }
@@ -152,8 +159,8 @@ func (grd *GenericResourceDetector) evaluateDynamicField(augmented augmentedobjs
 
 		if dynamicValue := value.GetDynamic(); dynamicValue != nil {
 			violated, violation = grd.evaluateDynamicValue(augmented, dynamicValue, group)
-		} else if value.GetValue() != "" {
-			violated, violation = grd.evaluateLegacyDynamicValue(augmented, value.GetValue(), group)
+		} else if value.GetStringValue() != "" {
+			violated, violation = grd.evaluateLegacyDynamicValue(augmented, value.GetStringValue(), group)
 		}
 
 		if violated {
@@ -184,7 +191,7 @@ func (grd *GenericResourceDetector) evaluateDynamicValue(augmented augmentedobjs
 		group.GetNegate(),
 	)
 
-	result, matched := evaluator.Evaluate(augmented)
+	_, matched := evaluator.Evaluate(augmented)
 	if matched {
 		return true, &PolicyViolation{
 			FieldName:   "Kubernetes Field",
@@ -220,7 +227,7 @@ func (grd *GenericResourceDetector) evaluateLegacyDynamicValue(augmented augment
 	}
 
 	evaluator := evaluator.NewDynamicFieldEvaluator(fieldPath, operator, values, group.GetNegate())
-	result, matched := evaluator.Evaluate(augmented)
+	_, matched := evaluator.Evaluate(augmented)
 
 	if matched {
 		return true, &PolicyViolation{

@@ -1060,7 +1060,7 @@ func flattenPolicyGroupMap(policyGroupMap map[string][]*storage.PolicyGroup) []*
 func combinePolicyValues(policyValues []*storage.PolicyValue) []*storage.PolicyValue {
 	splitValueStringLists := make([][]string, 0, len(policyValues))
 	for _, policyValue := range policyValues {
-		splitValueStringLists = append(splitValueStringLists, strings.Split(policyValue.GetValue(), "="))
+		splitValueStringLists = append(splitValueStringLists, strings.Split(policyValue.GetStringValue(), "="))
 	}
 
 	requiredLength := len(splitValueStringLists[0])
@@ -1084,7 +1084,9 @@ func combinePolicyValues(policyValues []*storage.PolicyValue) []*storage.PolicyV
 	values := make([]*storage.PolicyValue, len(combinations))
 	for i, combination := range combinations {
 		values[i] = &storage.PolicyValue{
-			Value: combination,
+			Value: &storage.PolicyValue_StringValue{
+				StringValue: combination,
+			},
 		}
 	}
 

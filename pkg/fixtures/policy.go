@@ -33,7 +33,7 @@ var (
 						FieldName: "Image Registry",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "docker.io",
+								Value: &storage.PolicyValue_StringValue{StringValue: "docker.io"},
 							},
 						},
 					},
@@ -41,7 +41,7 @@ var (
 						FieldName: "Image Remote",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "r/.*stackrox/nginx.*",
+								Value: &storage.PolicyValue_StringValue{StringValue: "r/.*stackrox/nginx.*"},
 							},
 						},
 					},
@@ -49,7 +49,7 @@ var (
 						FieldName: "Image Tag",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "1.10",
+								Value: &storage.PolicyValue_StringValue{StringValue: "1.10"},
 							},
 						},
 					},
@@ -57,7 +57,7 @@ var (
 						FieldName: "Image Age",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "30",
+								Value: &storage.PolicyValue_StringValue{StringValue: "30"},
 							},
 						},
 					},
@@ -65,7 +65,7 @@ var (
 						FieldName: "Dockerfile Line",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "VOLUME=/etc/*",
+								Value: &storage.PolicyValue_StringValue{StringValue: "VOLUME=/etc/*"},
 							},
 						},
 					},
@@ -73,7 +73,7 @@ var (
 						FieldName: "CVE",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "CVE-1234",
+								Value: &storage.PolicyValue_StringValue{StringValue: "CVE-1234"},
 							},
 						},
 					},
@@ -81,7 +81,7 @@ var (
 						FieldName: "Image Component",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "berkeley*=.*",
+								Value: &storage.PolicyValue_StringValue{StringValue: "berkeley*=.*"},
 							},
 						},
 					},
@@ -89,7 +89,7 @@ var (
 						FieldName: "Image Scan Age",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "10",
+								Value: &storage.PolicyValue_StringValue{StringValue: "10"},
 							},
 						},
 					},
@@ -97,7 +97,7 @@ var (
 						FieldName: "Environment Variable",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "UNSET=key=value",
+								Value: &storage.PolicyValue_StringValue{StringValue: "UNSET=key=value"},
 							},
 						},
 					},
@@ -105,7 +105,7 @@ var (
 						FieldName: "Volume Name",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "name",
+								Value: &storage.PolicyValue_StringValue{StringValue: "name"},
 							},
 						},
 					},
@@ -113,7 +113,7 @@ var (
 						FieldName: "Volume Type",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "nfs",
+								Value: &storage.PolicyValue_StringValue{StringValue: "nfs"},
 							},
 						},
 					},
@@ -121,7 +121,7 @@ var (
 						FieldName: "Volume Destination",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "/etc/network",
+								Value: &storage.PolicyValue_StringValue{StringValue: "/etc/network"},
 							},
 						},
 					},
@@ -129,7 +129,7 @@ var (
 						FieldName: "Volume Source",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "10.0.0.1/export",
+								Value: &storage.PolicyValue_StringValue{StringValue: "10.0.0.1/export"},
 							},
 						},
 					},
@@ -137,7 +137,7 @@ var (
 						FieldName: "Writable Mounted Volume",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "false",
+								Value: &storage.PolicyValue_StringValue{StringValue: "false"},
 							},
 						},
 					},
@@ -145,7 +145,7 @@ var (
 						FieldName: "Port",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "8080",
+								Value: &storage.PolicyValue_StringValue{StringValue: "8080"},
 							},
 						},
 					},
@@ -153,7 +153,7 @@ var (
 						FieldName: "Protocol",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "tcp",
+								Value: &storage.PolicyValue_StringValue{StringValue: "tcp"},
 							},
 						},
 					},
@@ -161,7 +161,7 @@ var (
 						FieldName: "Privileged",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "true",
+								Value: &storage.PolicyValue_StringValue{StringValue: "true"},
 							},
 						},
 					},
@@ -169,7 +169,7 @@ var (
 						FieldName: "CVSS",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "\u003e= 5.000000",
+								Value: &storage.PolicyValue_StringValue{StringValue: "\u003e= 5.000000"},
 							},
 						},
 					},
@@ -177,10 +177,10 @@ var (
 						FieldName: "Drop Capabilities",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "DROP1",
+								Value: &storage.PolicyValue_StringValue{StringValue: "DROP1"},
 							},
 							{
-								Value: "DROP2",
+								Value: &storage.PolicyValue_StringValue{StringValue: "DROP2"},
 							},
 						},
 					},
@@ -188,10 +188,10 @@ var (
 						FieldName: "Add Capabilities",
 						Values: []*storage.PolicyValue{
 							{
-								Value: "ADD1",
+								Value: &storage.PolicyValue_StringValue{StringValue: "ADD1"},
 							},
 							{
-								Value: "ADD2",
+								Value: &storage.PolicyValue_StringValue{StringValue: "ADD2"},
 							},
 						},
 					},
@@ -238,11 +238,11 @@ func GetAuditLogEventSourcePolicy() *storage.Policy {
 	p.PolicySections[0].PolicyGroups = []*storage.PolicyGroup{
 		{
 			FieldName: "Kubernetes Resource",
-			Values:    []*storage.PolicyValue{{Value: "SECRETS"}},
+			Values:    []*storage.PolicyValue{{Value: &storage.PolicyValue_StringValue{StringValue: "SECRETS"}}},
 		},
 		{
 			FieldName: "Kubernetes API Verb",
-			Values:    []*storage.PolicyValue{{Value: "CREATE"}},
+			Values:    []*storage.PolicyValue{{Value: &storage.PolicyValue_StringValue{StringValue: "CREATE"}}},
 		},
 	}
 	return p
@@ -266,7 +266,7 @@ func GetNetworkFlowPolicy() *storage.Policy {
 			PolicyGroups: []*storage.PolicyGroup{{
 				FieldName: "Unexpected Network Flow Detected",
 				Values: []*storage.PolicyValue{{
-					Value: "true",
+					Value: &storage.PolicyValue_StringValue{StringValue: "true"},
 				}},
 			}},
 		}},

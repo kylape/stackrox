@@ -220,7 +220,9 @@ func GetPolicyGroupFromSearchTerms(fieldLabel search.FieldLabel, searchTerms []s
 	}
 	for _, value := range fieldValues {
 		group.Values = append(group.GetValues(), &storage.PolicyValue{
-			Value: value,
+			Value: &storage.PolicyValue_StringValue{
+				StringValue: value,
+			},
 		})
 	}
 	return group, fieldsDropped, true

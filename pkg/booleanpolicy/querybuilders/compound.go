@@ -16,7 +16,7 @@ func ForCompound(field string, count int) QueryBuilder {
 	return queryBuilderFunc(func(group *storage.PolicyGroup) []*query.FieldQuery {
 		vals := make([]string, 0, len(group.GetValues()))
 		for _, v := range group.GetValues() {
-			fields := strings.SplitN(v.GetValue(), "=", count)
+			fields := strings.SplitN(v.GetStringValue(), "=", count)
 			if len(fields) != count {
 				return nil
 			}

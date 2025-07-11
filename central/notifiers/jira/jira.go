@@ -261,7 +261,7 @@ func (j *jira) getAlertDescription(alert *storage.Alert) (string, error) {
 
 			var valueStrings []string
 			for _, value := range values {
-				valueStrings = append(valueStrings, value.GetValue())
+				valueStrings = append(valueStrings, value.GetStringValue())
 			}
 
 			valuesString := strings.Join(valueStrings, opString)

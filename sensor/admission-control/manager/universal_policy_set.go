@@ -7,11 +7,11 @@ import (
 
 // UniversalPolicySet implements PolicySet interface for filtering policies by resource type
 type UniversalPolicySet struct {
-	policySet *detection.PolicySet
+	policySet detection.PolicySet
 }
 
 // NewUniversalPolicySet creates a new universal policy set wrapper
-func NewUniversalPolicySet(policySet *detection.PolicySet) *UniversalPolicySet {
+func NewUniversalPolicySet(policySet detection.PolicySet) *UniversalPolicySet {
 	return &UniversalPolicySet{
 		policySet: policySet,
 	}

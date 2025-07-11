@@ -230,7 +230,7 @@ func checkIfPolicyContainsID(id string, policy *storage.Policy) bool {
 			// Only check values of the "Image Signature Verified By" field.
 			if group.GetFieldName() == search.ImageSignatureVerifiedBy.String() {
 				for _, v := range group.GetValues() {
-					if v.GetValue() == id {
+					if v.GetStringValue() == id {
 						return true
 					}
 				}

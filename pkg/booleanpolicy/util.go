@@ -40,7 +40,7 @@ func ForEachValueWithFieldName(policy *storage.Policy, fieldName string, f func(
 		for _, group := range section.GetPolicyGroups() {
 			if group.GetFieldName() == fieldName {
 				for _, val := range group.GetValues() {
-					if !f(val.GetValue()) {
+					if !f(val.GetStringValue()) {
 						return
 					}
 				}

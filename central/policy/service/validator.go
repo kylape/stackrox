@@ -218,12 +218,12 @@ func (s *policyValidator) getCaps(policy *storage.Policy, capsTypes string) []*s
 func (s *policyValidator) validateCapabilities(policy *storage.Policy) error {
 	values := set.NewSet[string]()
 	for _, s := range s.getCaps(policy, fieldnames.AddCaps) {
-		values.Add(s.GetValue())
+		values.Add(s.GetStringValue())
 	}
 	var duplicates []string
 	for _, s := range s.getCaps(policy, fieldnames.DropCaps) {
 		// We use `Remove` to ensure that each duplicate value is reported only once.
-		if val := s.GetValue(); values.Remove(val) {
+		if val := s.GetStringValue(); values.Remove(val) {
 			duplicates = append(duplicates, val)
 		}
 	}

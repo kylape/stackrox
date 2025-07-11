@@ -137,7 +137,7 @@ func GetScopedResourceAlert(ID string, clusterID string, namespace string) *stor
 // GetClusterResourceAlert returns a Mock Alert with a resource entity that is cluster wide (i.e. has no namespace)
 func GetClusterResourceAlert() *storage.Alert {
 	policy := GetAuditLogEventSourcePolicy()
-	policy.PolicySections[0].PolicyGroups[0].Values[0].Value = "CLUSTER_ROLES"
+	policy.PolicySections[0].PolicyGroups[0].Values[0].Value = &storage.PolicyValue_StringValue{StringValue: "CLUSTER_ROLES"}
 
 	return copyScopingInfo(&storage.Alert{
 		Id: fixtureconsts.Alert1,

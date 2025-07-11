@@ -11902,7 +11902,7 @@ func (resolver *Resolver) wrapPolicyValuesWithContext(ctx context.Context, value
 }
 
 func (resolver *policyValueResolver) Value(ctx context.Context) string {
-	value := resolver.data.GetValue()
+	value := resolver.data.GetStringValue()
 	return value
 }
 

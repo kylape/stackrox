@@ -237,7 +237,7 @@ func valuePrinter(values []*storage.PolicyValue, op storage.BooleanOperator, neg
 
 	var valueStrings []string
 	for _, value := range values {
-		valueStrings = append(valueStrings, value.GetValue())
+		valueStrings = append(valueStrings, value.GetStringValue())
 	}
 
 	valuesString := strings.Join(valueStrings, opString)

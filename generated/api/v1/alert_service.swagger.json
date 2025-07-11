@@ -950,6 +950,10 @@
           "$ref": "#/definitions/storageAlertResource",
           "title": "Represents an alert on a kubernetes resource (configmaps, secrets, etc.)\nAn alert cannot be on more than one entity (deployment, container image, resource, etc.)"
         },
+        "resourceReference": {
+          "$ref": "#/definitions/storageResourceReference",
+          "title": "Universal reference to any Kubernetes resource - replaces resource above for new universal policies"
+        },
         "violations": {
           "type": "array",
           "items": {
@@ -987,7 +991,7 @@
           "$ref": "#/definitions/AlertEntityType"
         }
       },
-      "title": "Next available tag: 24"
+      "title": "Next available tag: 25"
     },
     "storageAlertDeployment": {
       "type": "object",
@@ -1095,6 +1099,30 @@
       },
       "title": "Next tag: 12"
     },
+    "storageDeploymentTarget": {
+      "type": "object",
+      "title": "Empty for now, allows future deployment-specific options"
+    },
+    "storageDynamicFieldValue": {
+      "type": "object",
+      "properties": {
+        "fieldPath": {
+          "type": "string",
+          "title": "\"spec.type\", \"metadata.annotations['key']\""
+        },
+        "operator": {
+          "type": "string",
+          "title": "\"equals\", \"contains\", \"exists\", \">\", \"regex_match\""
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Values to match against"
+        }
+      }
+    },
     "storageEnforcementAction": {
       "type": "string",
       "enum": [
@@ -1170,6 +1198,26 @@
         },
         "fullName": {
           "type": "string"
+        }
+      }
+    },
+    "storageKubernetesResourceTarget": {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "\"v1\", \"networking.k8s.io/v1\", etc."
+        },
+        "kind": {
+          "type": "string",
+          "description": "\"ConfigMap\", \"Service\", \"Ingress\", etc."
+        },
+        "namespaces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Optional: limit to specific namespaces (empty = all namespaces)"
         }
       }
     },
@@ -1447,9 +1495,13 @@
         },
         "source": {
           "$ref": "#/definitions/storagePolicySource"
+        },
+        "resourceTarget": {
+          "$ref": "#/definitions/storageResourceTarget",
+          "description": "Specifies what type of resource this policy evaluates. If not set, defaults to deployment-like resources for backward compatibility."
         }
       },
-      "title": "Next tag: 28"
+      "title": "Next tag: 29"
     },
     "storagePolicyGroup": {
       "type": "object",
@@ -1503,8 +1555,13 @@
     "storagePolicyValue": {
       "type": "object",
       "properties": {
-        "value": {
-          "type": "string"
+        "stringValue": {
+          "type": "string",
+          "title": "Existing string value"
+        },
+        "dynamic": {
+          "$ref": "#/definitions/storageDynamicFieldValue",
+          "title": "NEW dynamic field value"
         }
       }
     },
@@ -1609,6 +1666,42 @@
             "$ref": "#/definitions/ProcessSignalLineageInfo"
           },
           "title": "Process LineageInfo"
+        }
+      }
+    },
+    "storageResourceReference": {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "description": "\"v1\", \"networking.k8s.io/v1\", etc."
+        },
+        "kind": {
+          "type": "string",
+          "description": "\"ConfigMap\", \"Service\", \"Ingress\", etc."
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        }
+      },
+      "title": "Universal resource reference for any Kubernetes resource"
+    },
+    "storageResourceTarget": {
+      "type": "object",
+      "properties": {
+        "deployment": {
+          "$ref": "#/definitions/storageDeploymentTarget",
+          "title": "Backward compatible (default)"
+        },
+        "kubernetes": {
+          "$ref": "#/definitions/storageKubernetesResourceTarget",
+          "title": "NEW"
         }
       }
     },

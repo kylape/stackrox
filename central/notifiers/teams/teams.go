@@ -249,7 +249,7 @@ func groupsToString(groups []*storage.PolicyGroup) string {
 func valueListToString(values []*storage.PolicyValue, opString string) string {
 	var valueList []string
 	for _, value := range values {
-		valueList = append(valueList, value.GetValue())
+		valueList = append(valueList, value.GetStringValue())
 	}
 	joinWithWhitespace := fmt.Sprintf(" %s ", opString)
 	return strings.Join(valueList, joinWithWhitespace)

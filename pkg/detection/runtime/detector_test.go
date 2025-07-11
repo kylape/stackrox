@@ -64,7 +64,7 @@ func (s *RuntimeDetectorTestSuite) TestConfigMapPolicyWithRegex() {
 		FieldName: "Kubernetes Resource Name",
 		Values: []*storage.PolicyValue{
 			{
-				Value: "r/config-.*",
+				Value: &storage.PolicyValue_StringValue{StringValue: "r/config-.*"},
 			},
 		},
 	})
@@ -129,16 +129,16 @@ func (s *RuntimeDetectorTestSuite) getUpdateSecretPolicy() *storage.Policy {
 					{
 						FieldName: "Kubernetes Resource",
 						Negate:    false,
-						Values:    []*storage.PolicyValue{{Value: "SECRETS"}},
+						Values:    []*storage.PolicyValue{{Value: &storage.PolicyValue_StringValue{StringValue: "SECRETS"}}},
 					},
 					{
 						FieldName: "Kubernetes API Verb",
 						Negate:    false,
-						Values:    []*storage.PolicyValue{{Value: "UPDATE"}},
+						Values:    []*storage.PolicyValue{{Value: &storage.PolicyValue_StringValue{StringValue: "UPDATE"}}},
 					},
 					{
 						FieldName: "Is Impersonated User",
-						Values:    []*storage.PolicyValue{{Value: "false"}},
+						Values:    []*storage.PolicyValue{{Value: &storage.PolicyValue_StringValue{StringValue: "false"}}},
 					},
 				},
 			},
@@ -162,16 +162,16 @@ func (s *RuntimeDetectorTestSuite) getCreateConfigmapPolicy() *storage.Policy {
 					{
 						FieldName: "Kubernetes Resource",
 						Negate:    false,
-						Values:    []*storage.PolicyValue{{Value: "CONFIGMAPS"}},
+						Values:    []*storage.PolicyValue{{Value: &storage.PolicyValue_StringValue{StringValue: "CONFIGMAPS"}}},
 					},
 					{
 						FieldName: "Kubernetes API Verb",
 						Negate:    false,
-						Values:    []*storage.PolicyValue{{Value: "CREATE"}},
+						Values:    []*storage.PolicyValue{{Value: &storage.PolicyValue_StringValue{StringValue: "CREATE"}}},
 					},
 					{
 						FieldName: "Is Impersonated User",
-						Values:    []*storage.PolicyValue{{Value: "true"}},
+						Values:    []*storage.PolicyValue{{Value: &storage.PolicyValue_StringValue{StringValue: "true"}}},
 					},
 				},
 			},
