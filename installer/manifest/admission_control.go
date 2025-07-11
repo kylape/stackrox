@@ -413,7 +413,7 @@ func (g AdmissionControlGenerator) applyValidatingWebhookConfiguration(m *manife
 	return Resource{
 		Object:        webhook,
 		Name:          webhook.Name,
-		IsUpdateable:  true,
+		IsUpdateable:  false,
 		ClusterScoped: true,
 	}
 }
