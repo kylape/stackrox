@@ -28,7 +28,6 @@ done
 kill $port_forward_pid
 
 kubectl -n tekton-pipelines wait --for=condition=Available deploy/tekton-pipelines-webhook
-tkn hub install task git-clone
 tkn hub install task buildah
 kubectl create sa admin || true
 kubectl create -f resources/stackrox
