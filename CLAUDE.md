@@ -136,6 +136,9 @@ docker run --rm --env POSTGRES_USER="$USER" --env POSTGRES_HOST_AUTH_METHOD=trus
 ### Go Code Conventions
 * Complex if statements with assignment should use the convention where the test expression is `err != nil`, *not* `err == nil`
 
+### Lint and Style Checks
+* When completing a task, always run `make golangci-lint` and fix any style errors.
+
 ## User-Specific Instructions
 
 - @~/.claude/stackrox.md
