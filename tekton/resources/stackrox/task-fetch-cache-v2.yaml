@@ -1,0 +1,91 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: fetch-cache-v2
+  annotations:
+    tekton.dev/tags: "cache"
+spec:
+  description: |
+    Fetches cache using tekton-caches StepActions with S3/MinIO backend.
+    Compatible wrapper for existing fetch-cache task interface.
+  params:
+  - name: HASHED_FILE_PATH
+    description: Path to file in source repository to hash to compute cache key (converted to pattern)
+    type: string
+  - name: BUCKET_NAME
+    description: Name of bucket that stores the caches
+    type: string
+  - name: BUILDER_IMAGE
+    description: Builder image spec (not used in new implementation but kept for compatibility)
+    type: string
+    default: ""
+  - name: S3_URL
+    description: URL to object storage
+    default: http://minio:9000
+  - name: AWS_ACCESS_KEY_ID
+    description: AWS Access Key ID (minio username)
+    default: minioadmin
+  - name: AWS_SECRET_ACCESS_KEY
+    description: AWS Secret Access Key (minio password)
+    default: minioadmin
+  results:
+  - name: fetched
+    description: Whether cache was fetched (true/false)
+  workspaces:
+  - name: shared-data
+  steps:
+  - name: setup-aws-credentials
+    image: alpine:latest
+    script: |
+      #!/bin/sh
+      set -ex
+      
+      # Create AWS credentials directory
+      mkdir -p $(workspaces.shared-data.path)/.aws
+      
+      # Create AWS credentials file
+      cat > $(workspaces.shared-data.path)/.aws/credentials <<EOF
+      [default]
+      aws_access_key_id = $(params.AWS_ACCESS_KEY_ID)
+      aws_secret_access_key = $(params.AWS_SECRET_ACCESS_KEY)
+      EOF
+      
+      # Create AWS config file  
+      cat > $(workspaces.shared-data.path)/.aws/config <<EOF
+      [default]
+      region = us-east-1
+      s3 =
+          signature_version = s3v4
+          addressing_style = path
+      EOF
+  - name: cache-fetch
+    ref:
+      name: cache-fetch
+    params:
+    - name: PATTERNS
+      value: ["$(params.HASHED_FILE_PATH)"]
+    - name: SOURCE
+      value: "s3://$(params.BUCKET_NAME)/{{hash}}"
+    - name: CACHE_PATH
+      value: "$(workspaces.shared-data.path)/$(params.BUCKET_NAME)"
+    - name: WORKING_DIR
+      value: "$(workspaces.shared-data.path)/source"
+    - name: AWS_SHARED_CREDENTIALS_FILE
+      value: "$(workspaces.shared-data.path)/.aws/credentials"
+    - name: AWS_CONFIG_FILE
+      value: "$(workspaces.shared-data.path)/.aws/config"
+    - name: BLOB_QUERY_PARAMS
+      value: "endpoint=$(params.S3_URL)&disableSSL=true&s3ForcePathStyle=true"
+  - name: output-result
+    image: alpine:latest
+    env:
+    - name: CACHE_FETCH_RESULT_PATH
+      value: "$(steps.cache-fetch.results.fetched.path)"
+    script: |
+      #!/bin/sh
+      # Pass through the fetched result from cache-fetch step
+      if [ -f "$CACHE_FETCH_RESULT_PATH" ]; then
+        cp "$CACHE_FETCH_RESULT_PATH" "$(results.fetched.path)"
+      else
+        echo -n "false" > "$(results.fetched.path)"
+      fi
