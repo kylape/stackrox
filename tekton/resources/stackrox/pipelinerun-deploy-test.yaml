@@ -1,0 +1,38 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: stackrox-deploy-test-
+spec:
+  pipelineRef:
+    name: stackrox-deploy-test
+  taskRunTemplate:
+    podTemplate:
+      env:
+      - name: DOCKER_CONFIG
+        value: /tmp/.docker
+      - name: HOME
+        value: /tmp
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 0
+        fsGroup: 0
+  workspaces:
+  - name: shared-data
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+  params:
+  - name: builder-image
+    value: quay.io/klape/stackrox-builder:latest-arm64
+  - name: repo-url
+    value: https://github.com/kylape/stackrox.git
+  - name: revision
+    value: vmvm
+  taskRunSpecs:
+  - pipelineTaskName: deploy-stackrox
+    serviceAccountName: admin
