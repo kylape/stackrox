@@ -476,12 +476,32 @@ spec:
       value: scannerv2/go.mod
     - name: BUCKET_NAME
       value: scanner-cache
-  - name: build-image
+  - name: get-git-commit
     runAfter:
     - put-scanner-cache
     - put-gomod-cache
     - put-npm-cache
     # - build-collector
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskSpec:
+      results:
+      - name: git-commit
+        description: Short git commit hash
+      steps:
+      - name: get-commit
+        image: $(params.builder-image)
+        script: |
+          #!/usr/bin/env bash
+          set -ex
+          cd $(workspaces.shared-data.path)/source
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          echo "Git commit: $GIT_COMMIT"
+          echo -n "$GIT_COMMIT" | tee $(results.git-commit.path)
+  - name: build-image
+    runAfter:
+    - get-git-commit
     workspaces:
     - name: source
       workspace: shared-data
@@ -491,7 +511,7 @@ spec:
       name: buildah
     params:
     - name: IMAGE
-      value: kind-registry:5000/stackrox/stackrox:latest
+      value: kind-registry:5000/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)
     - name: PUSH_EXTRA_ARGS
       value: "--tls-verify=false"
     - name: CONTEXT
@@ -502,7 +522,7 @@ spec:
     taskSpec:
       steps:
       - name: deploy-stackrox
-        image: localhost:5001/stackrox/stackrox:latest
+        image: $(params.builder-image)
         command:
         script: |
           #!/usr/bin/env bash
@@ -513,9 +533,16 @@ spec:
           namespace: $namespace
           scannerV4: true
           images:
-            scannerDb: "localhost:5001/stackrox/scanner-db:latest"
-            scannerv4Db: "localhost:5001/stackrox/scanner-v4-db:latest"
-            centralDb: "localhost:5001/stackrox/central-db:latest"
+          - scannerDb: "localhost:5001/stackrox/scanner-db:latest"
+          - scannerv4Db: "localhost:5001/stackrox/scanner-v4-db:latest"
+          - centralDb: "localhost:5001/stackrox/central-db:latest"
+          - admissionControl: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - sensor: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - configController: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - central: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - scanner: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - scannerv4: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+          - collector: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
           EOF
           /stackrox/installer -conf "$config_file" apply central
           kubectl wait --for=condition=Available --timeout=120s deploy/central
