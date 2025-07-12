@@ -186,10 +186,10 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: fetch-cache
+      name: fetch-cache-v2
     params:
     - name: HASHED_FILE_PATH
-      value: ui/apps/platform/package.json
+      value: "**/package.json"
     - name: BUCKET_NAME
       value: npm-cache
     - name: BUILDER_IMAGE
@@ -217,14 +217,16 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: put-cache
+      name: put-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: ui/apps/platform/package.json
+      value: "**/package.json"
     - name: BUCKET_NAME
       value: npm-cache
+    - name: FETCHED
+      value: $(tasks.fetch-npm-cache.results.fetched)
   - name: download
     runAfter:
       - fetch-source
@@ -249,12 +251,12 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: fetch-cache
+      name: fetch-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: go.mod
+      value: "**/go.mod"
     - name: BUCKET_NAME
       value: go-mod-cache
   - name: fetch-go-cache
@@ -264,12 +266,12 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: fetch-cache
+      name: fetch-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: go.mod
+      value: "**/go.mod"
     - name: BUCKET_NAME
       value: go-cache
   - name: go-mod-tidy
@@ -344,14 +346,16 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: put-cache
+      name: put-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: go.mod
+      value: "**/go.mod"
     - name: BUCKET_NAME
       value: go-cache
+    - name: FETCHED
+      value: $(tasks.fetch-go-cache.results.fetched)
   - name: put-gomod-cache
     runAfter:
     - put-go-cache
@@ -359,14 +363,16 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: put-cache
+      name: put-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: go.mod
+      value: "**/go.mod"
     - name: BUCKET_NAME
       value: go-mod-cache
+    - name: FETCHED
+      value: $(tasks.fetch-gomod-cache.results.fetched)
   # - name: build-collector
   #   runAfter:
   #   - fetch-collector
@@ -387,12 +393,12 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: fetch-cache
+      name: fetch-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: scannerv2/go.mod
+      value: "**/scannerv2/go.mod"
     - name: BUCKET_NAME
       value: scanner-mod-cache
   - name: fetch-scanner-cache
@@ -402,12 +408,12 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: fetch-cache
+      name: fetch-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: scannerv2/go.mod
+      value: "**/scannerv2/go.mod"
     - name: BUCKET_NAME
       value: scanner-cache
   - name: build-scanner-v2
@@ -453,14 +459,16 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: put-cache
+      name: put-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: scannerv2/go.mod
+      value: "**/scannerv2/go.mod"
     - name: BUCKET_NAME
       value: scanner-mod-cache
+    - name: FETCHED
+      value: $(tasks.fetch-scanner-mod-cache.results.fetched)
   - name: put-scanner-cache
     runAfter:
     - put-scanner-mod-cache
@@ -468,14 +476,16 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: put-cache
+      name: put-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
     - name: HASHED_FILE_PATH
-      value: scannerv2/go.mod
+      value: "**/scannerv2/go.mod"
     - name: BUCKET_NAME
       value: scanner-cache
+    - name: FETCHED
+      value: $(tasks.fetch-scanner-cache.results.fetched)
   - name: get-git-commit
     runAfter:
     - put-scanner-cache
