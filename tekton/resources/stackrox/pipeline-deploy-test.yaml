@@ -15,6 +15,12 @@ spec:
   workspaces:
   - name: shared-data
   tasks:
+  - name: setup-aws-credentials
+    workspaces:
+    - name: shared-data
+      workspace: shared-data
+    taskRef:
+      name: setup-aws-credentials
   - name: fetch-source
     workspaces:
     - name: output
@@ -35,11 +41,12 @@ spec:
   - name: fetch-gomod-cache
     runAfter:
     - fetch-source
+    - setup-aws-credentials
     workspaces:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: fetch-cache
+      name: fetch-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
@@ -54,7 +61,7 @@ spec:
     - name: shared-data
       workspace: shared-data
     taskRef:
-      name: fetch-cache
+      name: fetch-cache-v2
     params:
     - name: BUILDER_IMAGE
       value: $(params.builder-image)
