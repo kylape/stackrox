@@ -22,12 +22,6 @@ spec:
   - name: S3_URL
     description: URL to object storage
     default: http://minio:9000
-  - name: AWS_ACCESS_KEY_ID
-    description: AWS Access Key ID (minio username)
-    default: minioadmin
-  - name: AWS_SECRET_ACCESS_KEY
-    description: AWS Secret Access Key (minio password)
-    default: minioadmin
   - name: FETCHED
     description: Whether cache was fetched previously (from fetch-cache-v2 result)
     type: string

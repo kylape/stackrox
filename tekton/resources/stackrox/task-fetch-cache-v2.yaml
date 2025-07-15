@@ -22,12 +22,6 @@ spec:
   - name: S3_URL
     description: URL to object storage
     default: http://minio:9000
-  - name: AWS_ACCESS_KEY_ID
-    description: AWS Access Key ID (minio username)
-    default: minioadmin
-  - name: AWS_SECRET_ACCESS_KEY
-    description: AWS Secret Access Key (minio password)
-    default: minioadmin
   results:
   - name: fetched
     description: Whether cache was fetched (true/false)
@@ -52,8 +46,10 @@ spec:
       value: "$(workspaces.shared-data.path)/.aws/config"
     - name: BLOB_QUERY_PARAMS
       value: "endpoint=$(params.S3_URL)&disableSSL=true&s3ForcePathStyle=true"
+    - name: INSECURE
+      value: "true"
   - name: output-result
-    image: alpine:latest
+    image: $(params.BUILDER_IMAGE)
     env:
     - name: CACHE_FETCH_RESULT_PATH
       value: "$(steps.cache-fetch.results.fetched.path)"
