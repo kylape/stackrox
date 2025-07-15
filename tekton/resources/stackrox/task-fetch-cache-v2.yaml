@@ -45,7 +45,7 @@ spec:
     - name: AWS_CONFIG_FILE
       value: "$(workspaces.shared-data.path)/.aws/config"
     - name: BLOB_QUERY_PARAMS
-      value: "endpoint=$(params.S3_URL)&disableSSL=true&s3ForcePathStyle=true"
+      value: "?endpoint=$(params.S3_URL)&disable_https=true&use_path_style=true"
     - name: INSECURE
       value: "true"
   - name: output-result
