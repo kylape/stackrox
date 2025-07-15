@@ -39,7 +39,7 @@ spec:
   - name: repo-url
     value: https://github.com/kylape/stackrox.git
   - name: revision
-    value: vmvm
+    value: combined-vmvm
   taskRunSpecs:
   - pipelineTaskName: deploy-stackrox
     serviceAccountName: admin

@@ -541,15 +541,15 @@ spec:
     taskSpec:
       steps:
       - name: deploy-stackrox
-        image: $(params.builder-image)
+        image: kind-registry:5000/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)
         command:
         script: |
           #!/usr/bin/env bash
           set -ex
           config_file=$(mktemp)
-          namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+          # namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
           cat << EOF > "$config_file"
-          namespace: $namespace
+          namespace: stackrox
           scannerV4: true
           images:
           - scannerDb: "localhost:5001/stackrox/scanner-db:latest"
