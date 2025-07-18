@@ -31,6 +31,7 @@ type Service interface {
 	sensor.VirtualMachineServiceServer
 	AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error)
 	Notify(e common.SensorComponentEvent)
+	Name() string
 	Start() error
 	Stop()
 	Capabilities() []centralsensor.SensorCapability
@@ -51,6 +52,10 @@ type serviceImpl struct {
 	toCentral      chan *message.ExpiringMessage
 	stopper        concurrency.Stopper
 	fromDataSource chan *storage.VirtualMachine
+}
+
+func (m *serviceImpl) Name() string {
+	return common.DefaultComponentName(m)
 }
 
 // RegisterServiceServer registers this service with the given gRPC Server.

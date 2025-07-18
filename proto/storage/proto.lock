@@ -16427,6 +16427,10 @@
               {
                 "name": "REGISTRANT_SERVICE",
                 "integer": 17
+              },
+              {
+                "name": "VSOCK_LISTENER_SERVICE",
+                "integer": 18
               }
             ]
           }

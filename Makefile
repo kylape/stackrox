@@ -909,7 +909,7 @@ bin/migrator: $(shell find migrator/ -name *.go) ${pkg}
 
 central: bin/central bin/config-controller bin/migrator bin/scanner-v4
 
-secured-cluster: bin/kubernetes bin/admission-control bin/compliance bin/upgrader bin/init-tls-certs
+secured-cluster: bin/kubernetes bin/admission-control bin/compliance bin/upgrader bin/init-tls-certs bin/vsock-listener
 
 bin/scanner-v4: $(shell find scanner/ -name *.go) ${pkg}
 	CGO_ENABLED=0 go build $(DEV_LD_FLAGS) -o $@ ./scanner/cmd/scanner

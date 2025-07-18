@@ -3,9 +3,9 @@ package vsock
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -118,7 +118,7 @@ func (s *Server) createVSockListener() (net.Listener, error) {
 	}
 	
 	// Convert to net.Listener
-	file := unix.NewFile(uintptr(fd), "vsock")
+	file := os.NewFile(uintptr(fd), "vsock")
 	if file == nil {
 		unix.Close(fd)
 		return nil, errors.New("failed to create file from VSOCK socket")

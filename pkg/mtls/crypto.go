@@ -104,6 +104,9 @@ var (
 	// AdmissionControlSubject is the identity used in certificates for Admission Control.
 	AdmissionControlSubject = Subject{ServiceType: storage.ServiceType_ADMISSION_CONTROL_SERVICE, Identifier: "Admission Control"}
 
+	// VSOCKListenerSubject is the identity used in certificates for the VSOCK Listener.
+	VSOCKListenerSubject = Subject{ServiceType: storage.ServiceType_VSOCK_LISTENER_SERVICE, Identifier: "VSOCK Listener"}
+
 	// ScannerSubject is the identity used in certificates for Scanner.
 	ScannerSubject = Subject{ServiceType: storage.ServiceType_SCANNER_SERVICE, Identifier: "Scanner"}
 
