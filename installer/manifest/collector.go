@@ -21,12 +21,13 @@ func (g CollectorGenerator) Exportable() bool {
 func (g CollectorGenerator) Generate(ctx context.Context, m *manifestGenerator) ([]Resource, error) {
 	return []Resource{
 		genServiceAccount("collector"),
-		genRoleBinding("central", "use-nonroot-v2-scc", m.Config.Namespace),
-		g.genDaemonSet(ctx, m),
+		genClusterRoleBinding("collector", "kubevirt.io:view", m.Config.Namespace),
+		genRoleBinding("collector", "use-nonroot-v2-scc", m.Config.Namespace),
+		g.genDaemonSet(m),
 	}, nil
 }
 
-func (g CollectorGenerator) genDaemonSet(ctx context.Context, m *manifestGenerator) Resource {
+func (g CollectorGenerator) genDaemonSet(m *manifestGenerator) Resource {
 	trueBool := true
 	hostToContainer := v1.MountPropagationHostToContainer
 	ds := apps.DaemonSet{

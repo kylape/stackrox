@@ -211,14 +211,13 @@ func (s *Server) getPeerCID(conn net.Conn) (uint32, error) {
 
 // processVMConnection processes data from a VM connection
 func (s *Server) processVMConnection(conn net.Conn, vmInfo *k8s.VMInfo) error {
-	// Read message header (4 bytes length + 4 bytes message type)
-	header := make([]byte, 8)
+	// Read message header (4 bytes length only)
+	header := make([]byte, 4)
 	if _, err := io.ReadFull(conn, header); err != nil {
 		return errors.Wrap(err, "failed to read message header")
 	}
 	
-	messageLen := binary.LittleEndian.Uint32(header[:4])
-	messageType := binary.LittleEndian.Uint32(header[4:8])
+	messageLen := binary.LittleEndian.Uint32(header)
 	
 	// Validate message length
 	if messageLen > 1024*1024 { // 1MB limit
@@ -231,15 +230,14 @@ func (s *Server) processVMConnection(conn net.Conn, vmInfo *k8s.VMInfo) error {
 		return errors.Wrap(err, "failed to read message body")
 	}
 	
-	log.Debugf("Received message from VM %s/%s: type=%d, len=%d", 
-		vmInfo.Namespace, vmInfo.Name, messageType, messageLen)
+	log.Debugf("Received message from VM %s/%s: len=%d", 
+		vmInfo.Namespace, vmInfo.Name, messageLen)
 	
 	// Create VM data message
 	vmData := &relay.VMData{
 		VMUID:       vmInfo.UID,
 		VMName:      vmInfo.Name,
 		VMNamespace: vmInfo.Namespace,
-		MessageType: messageType,
 		Data:        body,
 		Timestamp:   time.Now(),
 	}

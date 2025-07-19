@@ -18,8 +18,8 @@ import (
 
 const (
 	// VSOCK_PORT is the port used for VSOCK communication
-	// Using port 514 (syslog) as it's well-known but not typically used in VMs
-	VSOCK_PORT = 514
+	// Using port 818 (unassigned) to avoid conflicts with system services
+	VSOCK_PORT = 818
 )
 
 var (

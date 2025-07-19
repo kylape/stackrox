@@ -2,7 +2,6 @@ package relay
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/stackrox/rox/pkg/logging"
 	"github.com/stackrox/rox/pkg/mtls"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -26,19 +26,8 @@ type VMData struct {
 	VMUID       string
 	VMName      string
 	VMNamespace string
-	MessageType uint32
 	Data        []byte
 	Timestamp   time.Time
-}
-
-// VulmaVirtualMachine represents the JSON structure sent by the vulma agent
-type VulmaVirtualMachine struct {
-	Scan *VulmaScan `json:"scan,omitempty"`
-}
-
-// VulmaScan represents scan data from vulma agent
-type VulmaScan struct {
-	Components []*storage.EmbeddedImageScanComponent `json:"components,omitempty"`
 }
 
 // SensorRelay manages communication with the sensor
@@ -194,49 +183,29 @@ func (r *SensorRelay) sendToSensor(data *VMData) error {
 
 // convertToVMMessage converts VMData to a storage.VirtualMachine protobuf message
 func (r *SensorRelay) convertToVMMessage(data *VMData) *storage.VirtualMachine {
-	now := timestamppb.New(data.Timestamp)
-
-	// Create base VM message using the actual protobuf structure
-	vm := &storage.VirtualMachine{
-		Id:          data.VMUID,
-		Name:        data.VMName,
-		Namespace:   data.VMNamespace,
-		LastUpdated: now,
+	// Unmarshal the protobuf data directly
+	var vm storage.VirtualMachine
+	if err := proto.Unmarshal(data.Data, &vm); err != nil {
+		log.Errorf("Failed to unmarshal VM protobuf data from %s: %v", data.VMName, err)
+		// Return a minimal VM message on error
+		return &storage.VirtualMachine{
+			Id:          data.VMUID,
+			Name:        data.VMName,
+			Namespace:   data.VMNamespace,
+			LastUpdated: timestamppb.New(data.Timestamp),
+		}
 	}
 
-	// Handle different message types
-	switch data.MessageType {
-	case 1: // Package data
-		// Parse JSON package data from vulma agent
-		var vulmaVM VulmaVirtualMachine
-		if err := json.Unmarshal(data.Data, &vulmaVM); err != nil {
-			log.Errorf("Failed to parse VM data from %s: %v", data.VMName, err)
-			return vm
-		}
+	// Update metadata from VSOCK connection
+	vm.Id = data.VMUID
+	vm.Name = data.VMName
+	vm.Namespace = data.VMNamespace
+	vm.LastUpdated = timestamppb.New(data.Timestamp)
 
-		// Convert vulma scan data to storage format
-		if vulmaVM.Scan != nil {
-			vm.Scan = &storage.VirtualMachineScan{
-				ScanTime:       now,
-				ScannerVersion: "vulma-0.1.0", // Version from vulma agent
-				Components:     vulmaVM.Scan.Components,
-				// TODO: Add operating system detection
-				// OperatingSystem: detectOS(vulmaVM.Scan.Components),
-			}
-		}
-
-		if vm.Scan != nil {
-			log.Debugf("Processed %d components for VM %s", len(vm.Scan.Components), data.VMName)
-		}
-
-	case 2: // System info
-		// Parse system info and populate VM fields
-		log.Debugf("Processing system info for VM %s", data.VMName)
-
-	default:
-		log.Warnf("Unknown message type %d from VM %s", data.MessageType, data.VMName)
+	if vm.Scan != nil {
+		log.Debugf("Processed %d components for VM %s", len(vm.Scan.Components), data.VMName)
 	}
 
-	return vm
+	return &vm
 }
 
