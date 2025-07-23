@@ -14,4 +14,3 @@ images:
   central: "localhost:5001/stackrox/stackrox:bbae90d"
   scanner: "localhost:5001/stackrox/stackrox:bbae90d"
   scannerv4: "localhost:5001/stackrox/stackrox:bbae90d"
-  vsockListener: "localhost:5001/stackrox/stackrox:bbae90d"

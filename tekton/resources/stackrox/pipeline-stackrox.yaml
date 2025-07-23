@@ -444,7 +444,7 @@ spec:
           export GOMODCACHE=$(workspaces.shared-data.path)/build-stackrox-go-binaries-mod-cache
           export GOCACHE=$(workspaces.shared-data.path)/build-stackrox-go-binaries-cache 
           go mod tidy
-          make central secured-cluster bin/installer bin/operator
+          make central secured-cluster bin/installer bin/operator bin/roxctl
       - name: put-gomod-cache
         ref:
           name: cache-upload

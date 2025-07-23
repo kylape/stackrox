@@ -1,0 +1,276 @@
+name: Fork Build
+on:
+  workflow_dispatch:
+    inputs:
+      build_images:
+        description: 'Build container images'
+        required: false
+        default: 'true'
+        type: boolean
+      registry:
+        description: 'Container registry to push to'
+        required: false
+        default: 'ghcr.io'
+        type: choice
+        options:
+          - 'ghcr.io'
+          - 'docker.io'
+  push:
+    branches:
+      - 'scanner-v4-ci-with-installer'
+      - 'feature/*'
+      - 'dev/*'
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  REGISTRY: ${{ inputs.registry || 'ghcr.io' }}
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-ui:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/stackrox-io/apollo-ci:stackrox-test-0.4.9
+    env:
+      ROX_PRODUCT_BRANDING: STACKROX_BRANDING
+      UI_PKG_INSTALL_EXTRA_ARGS: --ignore-scripts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build UI
+        run: |
+          make -C ui deps
+          make -C ui build
+
+      - name: Upload UI build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-build
+          path: |
+            ui/build
+            ui/apps/platform/package-lock.json
+
+  build-cli:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/stackrox-io/apollo-ci:stackrox-test-0.4.9
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build CLI
+        run: make cli
+
+      - name: Bundle CLI build
+        run: tar -cvzf cli-build.tgz bin
+
+      - name: Upload CLI build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-build
+          path: cli-build.tgz
+
+  build-go-binaries:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/stackrox-io/apollo-ci:stackrox-test-0.4.9
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build Go Binaries
+        run: |
+          if [[ "${{ matrix.arch }}" != "amd64" ]]; then
+            GOOS=linux GOARCH=${{ matrix.arch }} CGO_ENABLED=0 make build-prep main-build-nodeps
+          else
+            GOOS=linux GOARCH=${{ matrix.arch }} CGO_ENABLED=1 make build-prep main-build-nodeps
+          fi
+
+      - name: Bundle Go binaries
+        run: tar -cvzf go-binaries-build.tgz bin/linux_${{ matrix.arch }}
+
+      - name: Upload Go binaries artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-binaries-build-${{ matrix.arch }}
+          path: go-binaries-build.tgz
+
+  build-docs:
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/stackrox-io/apollo-ci:stackrox-test-0.4.9
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate documentation
+        run: |
+          go mod tidy
+          make swagger-docs
+          rm -rf .proto
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-build
+          path: image/rhel/docs
+
+  build-and-push-main:
+    if: ${{ inputs.build_images != 'false' }}
+    runs-on: ubuntu-latest
+    needs:
+      - build-ui
+      - build-cli
+      - build-go-binaries
+      - build-docs
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    env:
+      ROX_PRODUCT_BRANDING: STACKROX_BRANDING
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        if: matrix.arch != 'amd64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Checkout submodules
+        run: git submodule update --init
+
+      - name: Download UI build
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-build
+          path: ui
+
+      - name: Download CLI build
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-build
+
+      - name: Unpack CLI build
+        run: tar xvzf cli-build.tgz
+
+      - name: Download Go binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: go-binaries-build-${{ matrix.arch }}
+
+      - name: Unpack Go binaries
+        run: tar xvzf go-binaries-build.tgz
+
+      - name: Download docs
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-build
+          path: image/rhel/docs
+
+      - name: Generate OSS notice
+        run: |
+          make -C ui deps
+          make ossls-notice
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push main image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-${{ matrix.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GOOS=linux
+            GOARCH=${{ matrix.arch }}
+            ROX_PRODUCT_BRANDING=STACKROX_BRANDING
+
+      - name: Build and push roxctl image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./image/roxctl/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/roxctl:${{ github.sha }}-${{ matrix.arch }}
+          build-args: |
+            GOOS=linux
+            GOARCH=${{ matrix.arch }}
+
+  create-manifest:
+    if: ${{ inputs.build_images != 'false' }}
+    runs-on: ubuntu-latest
+    needs: build-and-push-main
+    steps:
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create and push manifest list
+        run: |
+          # Create manifest list for main image
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            docker manifest create ${tag} \
+              ${tag}-amd64 \
+              ${tag}-arm64
+            docker manifest push ${tag}
+          done
+
+          # Create manifest list for roxctl image
+          docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/roxctl:${{ github.sha }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/roxctl:${{ github.sha }}-amd64 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/roxctl:${{ github.sha }}-arm64
+          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/roxctl:${{ github.sha }}

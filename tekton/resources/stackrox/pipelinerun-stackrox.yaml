@@ -33,7 +33,7 @@ spec:
   - name: repo-url
     value: https://github.com/kylape/stackrox.git
   - name: revision
-    value: vsock
+    value: scanner-v4-ci-with-installer 
   taskRunSpecs:
   - pipelineTaskName: deploy-stackrox
     serviceAccountName: admin
