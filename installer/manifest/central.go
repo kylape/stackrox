@@ -205,6 +205,9 @@ func (g *CentralGenerator) createCentralDeployment(m *manifestGenerator) Resourc
 								Name:  "ROX_DEVELOPMENT_BUILD",
 								Value: strconv.FormatBool(m.Config.DevMode),
 							}, {
+								Name:  "ROX_DEV_MODE",
+								Value: strconv.FormatBool(m.Config.DevMode),
+							}, {
 								Name: "POD_NAMESPACE",
 								ValueFrom: &v1.EnvVarSource{
 									FieldRef: &v1.ObjectFieldSelector{
@@ -220,15 +223,6 @@ func (g *CentralGenerator) createCentralDeployment(m *manifestGenerator) Resourc
 								},
 							},
 						},
-					}, {
-						Name:            "nodejs",
-						Image:           m.Config.Images.Central,
-						ImagePullPolicy: v1.PullAlways,
-						Command: []string{
-							"sh",
-							"-c",
-							"cd /ui; npm run start",
-						},
 					}},
 				},
 			},
@@ -239,6 +233,20 @@ func (g *CentralGenerator) createCentralDeployment(m *manifestGenerator) Resourc
 		deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env, v1.EnvVar{
 			Name:  "ROX_SCANNER_V4",
 			Value: "true",
+		})
+	}
+
+	// Add nodejs dev server container only in dev mode
+	if m.Config.DevMode {
+		deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, v1.Container{
+			Name:            "nodejs",
+			Image:           m.Config.Images.Central,
+			ImagePullPolicy: v1.PullAlways,
+			Command: []string{
+				"sh",
+				"-c",
+				"cd /ui; npm run start",
+			},
 		})
 	}
 

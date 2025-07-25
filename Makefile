@@ -870,6 +870,7 @@ prometheus-metric-parser: $(PROMETHEUS_METRIC_PARSER_BIN)
 	@echo $(PROMETHEUS_METRIC_PARSER_BIN)
 
 DEV_VERSION = 4.8.x-nightly-20250307
+DEV_MODE ?= true
 DEV_LD_FLAGS = -buildvcs=false '-ldflags=-X "github.com/stackrox/rox/pkg/version/internal.MainVersion=$(DEV_VERSION)" -X "github.com/stackrox/rox/pkg/version/internal.CollectorVersion=$(DEV_VERSION)" -X "github.com/stackrox/rox/pkg/version/internal.ScannerVersion=$(DEV_VERSION)" -X "github.com/stackrox/rox/pkg/version/internal.GitShortSha=$(DEV_VERSION)"'
 
 pkg := $(shell find pkg -name *.go)
@@ -966,7 +967,7 @@ download: data
 
 .PHONY: build-combined-image
 build-combined-image:
-	podman build . | tee /tmp/stackrox-combined-image-tag
+	podman build --build-arg DEV_MODE=$(DEV_MODE) . | tee /tmp/stackrox-combined-image-tag
 
 .PHONY: push-combined-image-local
 push-combined-image-local: build-combined-image
