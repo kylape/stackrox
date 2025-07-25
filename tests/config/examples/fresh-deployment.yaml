@@ -1,0 +1,48 @@
+# Configuration for fresh StackRox deployment and testing
+# Use this when you want to build, deploy, and test a fresh StackRox installation
+
+cluster:
+  kubeconfig: ~/.kube/config
+  flavor: kubernetes
+
+stackrox:
+  useExisting: false
+  centralNamespace: e2e-central
+  sensorNamespace: e2e-sensor
+  username: admin
+  tls:
+    skipVerify: true
+
+build:
+  enabled: true
+  targets: [central, sensor, roxctl]
+  parallel: true
+  maxParallel: 4
+  imageTag: e2e-test
+  
+tests:
+  goTest:
+    enabled: true
+    tags: [test, test_e2e]
+    packages: [./tests, ./tests/bad-ca]
+    
+  suites: [api, roxctl, proxy, destructive]
+  parallel: true
+
+deploy:
+  mode: operator
+  cleanup: true
+  central:
+    namespace: e2e-central
+    replicas: 1
+  sensor:
+    namespace: e2e-sensor
+    collectionMethod: core_bpf
+
+artifacts:
+  baseDir: /tmp/e2e-artifacts-fresh
+  collect:
+    logs: true
+    events: true
+    describe: true
+  formats: [junit, json]

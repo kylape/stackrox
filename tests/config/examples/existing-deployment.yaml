@@ -1,0 +1,43 @@
+# Configuration for testing against an existing StackRox deployment
+# Use this when you already have StackRox running and want to test against it
+
+cluster:
+  kubeconfig: ~/.kube/config
+  flavor: kubernetes
+
+stackrox:
+  useExisting: true
+  centralNamespace: stackrox
+  sensorNamespace: stackrox
+  endpoint: localhost:8000
+  username: admin
+  # Set ROX_ADMIN_PASSWORD environment variable
+  tls:
+    skipVerify: true
+
+build:
+  enabled: false  # Don't build when using existing deployment
+
+tests:
+  goTest:
+    enabled: true
+    tags: [test, test_e2e]
+    packages: [./tests]
+    race: true
+    cover: true
+    timeout: 30m
+    parallel: 5
+    
+  suites: [api, roxctl]
+  parallel: true
+  timeout: 45m
+
+deploy:
+  mode: none  # Don't deploy when using existing
+
+artifacts:
+  baseDir: /tmp/e2e-artifacts-existing
+  collect:
+    logs: true
+    events: true
+  formats: [junit, json]

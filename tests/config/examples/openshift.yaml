@@ -1,0 +1,52 @@
+# Configuration for OpenShift clusters
+# Includes OpenShift-specific settings and capabilities
+
+cluster:
+  kubeconfig: ~/.kube/config
+  flavor: openshift
+  capabilities:
+    routes: true
+    securityContextConstraints: true
+    complianceOperator: true
+
+stackrox:
+  useExisting: true
+  centralNamespace: stackrox
+  sensorNamespace: stackrox
+  endpoint: central-stackrox.apps.cluster.example.com:443
+  username: admin
+  tls:
+    skipVerify: false
+
+build:
+  enabled: false
+
+tests:
+  goTest:
+    enabled: true
+    tags: [test, test_e2e, openshift]
+    packages: [./tests]
+    timeout: 45m  # OpenShift tests may take longer
+    
+  suites: [api, roxctl]
+  parallel: false  # Run sequentially on OpenShift
+  timeout: 60m
+
+  api:
+    enabled: true
+    timeout: 45m
+    
+  roxctl:
+    enabled: true
+    timeout: 20m
+
+deploy:
+  mode: none
+
+artifacts:
+  baseDir: /tmp/e2e-artifacts-openshift
+  collect:
+    logs: true
+    events: true
+    describe: true
+  formats: [junit, json]

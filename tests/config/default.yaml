@@ -1,0 +1,70 @@
+# Default E2E Runner Configuration
+# This configuration provides sensible defaults for most use cases
+
+cluster:
+  kubeconfig: ~/.kube/config
+  flavor: kubernetes
+
+stackrox:
+  useExisting: false
+  centralNamespace: stackrox
+  sensorNamespace: stackrox
+  endpoint: localhost:8000
+  username: admin
+  # password set via ROX_ADMIN_PASSWORD env var
+  tls:
+    skipVerify: true
+
+build:
+  enabled: true
+  targets: [central, sensor, roxctl]
+  parallel: true
+  maxParallel: 4
+  cache: true
+
+tests:
+  goTest:
+    enabled: true
+    tags: [test, test_e2e]
+    packages: [./tests]
+    race: true
+    cover: true
+    timeout: 30m
+    parallel: 5
+    
+  suites: [api]
+  parallel: true
+  failFast: false
+  timeout: 45m
+  
+  api:
+    enabled: true
+    tags: [test, test_e2e]
+    timeout: 30m
+    race: true
+    cover: true
+    
+  roxctl:
+    enabled: true
+    timeout: 15m
+    
+  proxy:
+    enabled: false
+    serverName: localhost
+    timeout: 10m
+    
+  destructive:
+    enabled: false
+    timeout: 20m
+
+deploy:
+  mode: none
+  cleanup: false
+  
+artifacts:
+  baseDir: /tmp/e2e-artifacts
+  collect:
+    logs: true
+    events: true
+    describe: true
+  formats: [junit, json]
