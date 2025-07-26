@@ -185,13 +185,13 @@ func (g *CentralGenerator) createCentralDeployment(m *manifestGenerator) Resourc
 						Name:            "migrator",
 						Image:           m.Config.Images.Central,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"/stackrox/bin/migrator"},
+						Command:         []string{getBinaryPath(m.Config, "migrator")},
 					}},
 					Containers: []v1.Container{{
 						Name:            "central",
 						Image:           m.Config.Images.Central,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"sh", "-c", "while true; do /stackrox/central; done"},
+						Command:         []string{"sh", "-c", fmt.Sprintf("while true; do %s; done", getBinaryPath(m.Config, "central"))},
 						Ports: []v1.ContainerPort{{
 							Name:          "api",
 							ContainerPort: 8443,

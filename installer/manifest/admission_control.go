@@ -163,7 +163,7 @@ func (g AdmissionControlGenerator) applyAdmissionControlDeployment(m *manifestGe
 						Name:            "init-tls-certs",
 						Image:           m.Config.Images.Sensor,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"/stackrox/init-tls-certs"},
+						Command:         []string{getBinaryPath(m.Config, "init-tls-certs")},
 						Args: []string{
 							"--legacy=/run/secrets/stackrox.io/certs-legacy/",
 							"--new=/run/secrets/stackrox.io/certs-new/",
@@ -174,7 +174,7 @@ func (g AdmissionControlGenerator) applyAdmissionControlDeployment(m *manifestGe
 						Name:            "admission-control",
 						Image:           m.Config.Images.AdmissionControl,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"/stackrox/admission-control"},
+						Command:         []string{getBinaryPath(m.Config, "admission-control")},
 						Ports: []v1.ContainerPort{{
 							Name:          "webhook",
 							ContainerPort: 8443,

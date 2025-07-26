@@ -22,6 +22,7 @@ type Config struct {
 	CertPath             string `yaml:"certPath"`
 	DevMode              bool   `yaml:"devMode"`
 	Images               Images `yaml:"images"`
+	ImageArchitecture    string `yaml:"imageArchitecture"`
 	Namespace            string `yaml:"namespace"`
 	ScannerV4            bool   `yaml:"scannerV4"`
 }
@@ -49,6 +50,7 @@ var DefaultConfig Config = Config{
 	DevMode:              false,
 	ApplyNetworkPolicies: false,
 	CertPath:             "./certs",
+	ImageArchitecture:    "single",
 	Images: Images{
 		AdmissionControl: localStackroxImage,
 		Sensor:           localStackroxImage,

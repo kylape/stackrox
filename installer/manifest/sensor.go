@@ -139,14 +139,14 @@ func (g SensorGenerator) applySensorDeployment(m *manifestGenerator) Resource {
 						Name:            "crs",
 						Image:           m.Config.Images.Sensor,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"/stackrox/kubernetes"},
+						Command:         []string{getBinaryPath(m.Config, "kubernetes-sensor")},
 						Args:            []string{"ensure-service-certificates"},
 						Env:             envVars,
 					}, {
 						Name:            "init-tls-certs",
 						Image:           m.Config.Images.Sensor,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"/stackrox/init-tls-certs"},
+						Command:         []string{getBinaryPath(m.Config, "init-tls-certs")},
 						Args: []string{
 							"--legacy=/run/secrets/stackrox.io/certs-legacy/",
 							"--new=/run/secrets/stackrox.io/certs-new/",
@@ -157,7 +157,7 @@ func (g SensorGenerator) applySensorDeployment(m *manifestGenerator) Resource {
 						Name:            "sensor",
 						Image:           m.Config.Images.Sensor,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"sh", "-c", "while true; do /stackrox/kubernetes; done"},
+						Command:         []string{"sh", "-c", fmt.Sprintf("while true; do %s; done", getBinaryPath(m.Config, "kubernetes-sensor"))},
 						Ports: []v1.ContainerPort{{
 							Name:          "api",
 							ContainerPort: 8443,

@@ -132,7 +132,7 @@ func (g *ScannerGenerator) genScannerDeployment(m *manifestGenerator) Resource {
 					Containers: []v1.Container{{
 						Name:    "scanner",
 						Image:   m.Config.Images.Scanner,
-						Command: []string{"/stackrox/scanner"},
+						Command: []string{getBinaryPath(m.Config, "scanner")},
 						Ports: []v1.ContainerPort{{
 							Name:          "https",
 							ContainerPort: 8080,

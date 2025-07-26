@@ -380,3 +380,43 @@ func RestrictedSecurityContext(user int64) *v1.SecurityContext {
 		},
 	}
 }
+
+// getBinaryPath returns the correct binary path based on image architecture
+func getBinaryPath(config *Config, binary string) string {
+	if config.ImageArchitecture == "multi" {
+		switch binary {
+		case "central":
+			return "/stackrox/central"
+		case "migrator":
+			return "/stackrox/bin/migrator"
+		case "admission-control":
+			return "/stackrox/bin/admission-control"
+		case "init-tls-certs":
+			return "/stackrox/bin/init-tls-certs"
+		case "config-controller":
+			return "/stackrox/bin/config-controller"
+		case "scanner":
+			return "/stackrox/bin/scanner"
+		case "scanner-v4":
+			return "/stackrox/bin/scanner-v4"
+		case "kubernetes-sensor":
+			return "/stackrox/bin/kubernetes-sensor"
+		case "compliance":
+			return "/stackrox/bin/compliance"
+		case "sensor-upgrader":
+			return "/stackrox/bin/sensor-upgrader"
+		default:
+			return "/stackrox/" + binary
+		}
+	} else {
+		// Single image architecture (current behavior)
+		switch binary {
+		case "migrator":
+			return "/stackrox/bin/migrator"
+		case "kubernetes-sensor":
+			return "/stackrox/kubernetes" // Single image uses 'kubernetes' not 'kubernetes-sensor'
+		default:
+			return "/stackrox/" + binary
+		}
+	}
+}

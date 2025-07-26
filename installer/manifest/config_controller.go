@@ -65,7 +65,7 @@ func (g *ConfigControllerGenerator) genConfigControllerDeployment(m *manifestGen
 					Containers: []v1.Container{{
 						Name:    "config-controller",
 						Image:   m.Config.Images.ConfigController,
-						Command: []string{"/stackrox/config-controller"},
+						Command: []string{getBinaryPath(m.Config, "config-controller")},
 						Env: []v1.EnvVar{
 							{
 								Name: "POD_NAMESPACE",

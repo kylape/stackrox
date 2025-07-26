@@ -181,7 +181,7 @@ func (g *ScannerV4Generator) genScannerV4Deployment(name string, replicaCount in
 						Name:  name,
 						Image: m.Config.Images.ScannerV4,
 						Command: []string{
-							"/stackrox/scanner-v4",
+							getBinaryPath(m.Config, "scanner-v4"),
 							"--conf=/etc/scanner/config.yaml",
 						},
 						Ports: []v1.ContainerPort{{
