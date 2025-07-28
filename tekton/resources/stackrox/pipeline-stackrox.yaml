@@ -678,17 +678,21 @@ spec:
           cat << EOF > "$config_file"
           namespace: stackrox
           scannerV4: true
+          devMode: true
+          crs:
+            portForward: false
           images:
-          - scannerDb: "localhost:5001/stackrox/scanner-db:latest"
-          - scannerv4Db: "localhost:5001/stackrox/scanner-v4-db:latest"
-          - centralDb: "localhost:5001/stackrox/central-db:latest"
-          - admissionControl: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
-          - sensor: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
-          - configController: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
-          - central: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
-          - scanner: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
-          - scannerv4: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
-          - collector: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+            scannerDb: "localhost:5001/stackrox/scanner-db:latest"
+            scannerv4Db: "localhost:5001/stackrox/scanner-v4-db:latest"
+            centralDb: "localhost:5001/stackrox/central-db:latest"
+            collector: "quay.io/stackrox-io/collector:3.22.0"
+            admissionControl: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+            sensor: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+            configController: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+            central: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+            scanner: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+            scannerv4: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
+            collector: "localhost:5001/stackrox/stackrox:$(tasks.get-git-commit.results.git-commit)"
           EOF
           /stackrox/installer -conf "$config_file" apply central
           kubectl wait --for=condition=Available --timeout=120s deploy/central
