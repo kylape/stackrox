@@ -118,7 +118,7 @@ func (g CollectorGenerator) genDaemonSet(m *manifestGenerator) Resource {
 						Name:            "vsock-listener",
 						Image:           m.Config.Images.VSOCKListener,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"/stackrox/vsock-listener"},
+						Command:         hotloadCommand("/stackrox/vsock-listener", m.Config),
 						SecurityContext: &v1.SecurityContext{
 							Privileged:             &trueBool,
 							ReadOnlyRootFilesystem: &trueBool,
@@ -131,9 +131,6 @@ func (g CollectorGenerator) genDaemonSet(m *manifestGenerator) Resource {
 							Value: "514",
 						}},
 						VolumeMounts: []v1.VolumeMount{{
-							Name:      "vhost-vsock",
-							MountPath: "/dev/vhost-vsock",
-						}, {
 							Name:      "certs",
 							MountPath: "/run/secrets/stackrox.io/certs",
 							ReadOnly:  true,
@@ -192,13 +189,6 @@ func (g CollectorGenerator) genDaemonSet(m *manifestGenerator) Resource {
 								DefaultMode: &ReadOnlyMode,
 								SecretName:  "tls-cert-collector",
 								Optional:    &trueBool,
-							},
-						},
-					}, {
-						Name: "vhost-vsock",
-						VolumeSource: v1.VolumeSource{
-							HostPath: &v1.HostPathVolumeSource{
-								Path: "/dev/vhost-vsock",
 							},
 						},
 					}},

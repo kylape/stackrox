@@ -191,7 +191,7 @@ func (g *CentralGenerator) createCentralDeployment(m *manifestGenerator) Resourc
 						Name:            "central",
 						Image:           m.Config.Images.Central,
 						ImagePullPolicy: v1.PullAlways,
-						Command:         []string{"sh", "-c", "while true; do /stackrox/central; done"},
+						Command:         hotloadCommand("/stackrox/central", m.Config),
 						Ports: []v1.ContainerPort{{
 							Name:          "api",
 							ContainerPort: 8443,

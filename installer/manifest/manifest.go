@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/stackrox/rox/pkg/certgen"
 	"github.com/stackrox/rox/pkg/logging"
 	"github.com/stackrox/rox/pkg/mtls"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -379,4 +379,15 @@ func RestrictedSecurityContext(user int64) *v1.SecurityContext {
 			Drop: []v1.Capability{"ALL"},
 		},
 	}
+}
+
+func hotloadCommand(cmd string, c *Config) []string {
+	if c.DevMode {
+		return []string{
+			"sh",
+			"-c",
+			fmt.Sprintf("while true; do %s; sleep 5; done", cmd),
+		}
+	}
+	return []string{cmd}
 }
