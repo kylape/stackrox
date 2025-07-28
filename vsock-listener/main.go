@@ -76,7 +76,8 @@ func runService() {
 	}
 
 	if err := svc.Start(); err != nil {
-		log.Fatalf("Failed to start VSOCK listener service: %v", err)
+		panic(err)
+		// log.Fatalf("Failed to start VSOCK listener service: %v", err)
 	}
 
 	// Wait for shutdown
@@ -87,4 +88,3 @@ func runService() {
 		log.Errorf("Error stopping service: %v", err)
 	}
 }
-

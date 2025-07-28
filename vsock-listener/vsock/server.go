@@ -85,6 +85,52 @@ func (s *Server) Stop() error {
 	return nil
 }
 
+// vsockListener implements net.Listener for VSOCK sockets
+type vsockListener struct {
+	fd int
+}
+
+func (l *vsockListener) Accept() (net.Conn, error) {
+	connFD, _, err := unix.Accept(l.fd)
+	if err != nil {
+		return nil, err
+	}
+	
+	file := os.NewFile(uintptr(connFD), "vsock-conn")
+	if file == nil {
+		unix.Close(connFD)
+		return nil, errors.New("failed to create file from connection")
+	}
+	
+	conn, err := net.FileConn(file)
+	if err != nil {
+		file.Close()
+		return nil, err
+	}
+	
+	file.Close() // FileConn takes ownership
+	return conn, nil
+}
+
+func (l *vsockListener) Close() error {
+	return unix.Close(l.fd)
+}
+
+func (l *vsockListener) Addr() net.Addr {
+	return &vsockAddr{}
+}
+
+// vsockAddr implements net.Addr for VSOCK addresses
+type vsockAddr struct{}
+
+func (a *vsockAddr) Network() string {
+	return "vsock"
+}
+
+func (a *vsockAddr) String() string {
+	return "vsock"
+}
+
 // createVSockListener creates a VSOCK listener
 func (s *Server) createVSockListener() (net.Listener, error) {
 	// Create VSOCK socket
@@ -117,21 +163,8 @@ func (s *Server) createVSockListener() (net.Listener, error) {
 		return nil, errors.Wrap(err, "failed to listen on VSOCK socket")
 	}
 	
-	// Convert to net.Listener
-	file := os.NewFile(uintptr(fd), "vsock")
-	if file == nil {
-		unix.Close(fd)
-		return nil, errors.New("failed to create file from VSOCK socket")
-	}
-	
-	listener, err := net.FileListener(file)
-	if err != nil {
-		file.Close()
-		return nil, errors.Wrap(err, "failed to create listener from file")
-	}
-	
-	file.Close() // FileListener takes ownership
-	return listener, nil
+	// Return custom VSOCK listener
+	return &vsockListener{fd: fd}, nil
 }
 
 // acceptConnections accepts incoming VSOCK connections
