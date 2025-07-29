@@ -12,6 +12,7 @@ import (
 	"github.com/stackrox/rox/pkg/concurrency"
 	"github.com/stackrox/rox/pkg/logging"
 	"github.com/stackrox/rox/pkg/mtls"
+	"github.com/stackrox/rox/pkg/safe"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -117,26 +118,20 @@ func (r *SensorRelay) SendVMData(data *VMData) error {
 func (r *SensorRelay) createSensorConnection() (*grpc.ClientConn, error) {
 	clientconn.SetUserAgent("Rox VSOCK Listener")
 
-	// Check if certificates exist at the expected location
-	certPath := mtls.CertsPrefix + mtls.ServiceCertFileName
-	keyPath := mtls.CertsPrefix + mtls.ServiceKeyFileName
-	caPath := mtls.CertsPrefix + mtls.CACertFileName
-
-	// Log certificate paths for debugging
-	log.Infof("Using certificates: cert=%s, key=%s, ca=%s", certPath, keyPath, caPath)
-
-	// Use collector certificates for authentication
-	opts, err := clientconn.OptionsForEndpoint(r.sensorAddr)
-	if err != nil {
-		return nil, errors.Wrapf(err, "creating connection options for %s", r.sensorAddr)
+	if err := safe.RunE(func() error {
+		if err := configureCA(); err != nil {
+			return err
+		}
+		if err := configureCerts("stackrox"); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		log.Errorf("Failed to configure certificates: %v. Connection to sensor might fail.", err)
 	}
 
-	conn, err := clientconn.GRPCConnection(
-		r.ctx,
-		mtls.CollectorSubject,
-		r.sensorAddr,
-		opts,
-	)
+	conn, err := clientconn.AuthenticatedGRPCConnection(r.ctx, r.sensorAddr, mtls.CollectorSubject)
+
 	if err != nil {
 		return nil, errors.Wrapf(err, "creating gRPC connection to sensor at %s", r.sensorAddr)
 	}
