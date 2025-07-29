@@ -117,8 +117,15 @@ func (r *SensorRelay) SendVMData(data *VMData) error {
 func (r *SensorRelay) createSensorConnection() (*grpc.ClientConn, error) {
 	clientconn.SetUserAgent("Rox VSOCK Listener")
 
+	// Check if certificates exist at the expected location
+	certPath := mtls.CertsPrefix + mtls.ServiceCertFileName
+	keyPath := mtls.CertsPrefix + mtls.ServiceKeyFileName
+	caPath := mtls.CertsPrefix + mtls.CACertFileName
+
+	// Log certificate paths for debugging
+	log.Infof("Using certificates: cert=%s, key=%s, ca=%s", certPath, keyPath, caPath)
+
 	// Use VM agent certificates for authentication
-	// Note: In a real implementation, you'd need appropriate certificates
 	opts, err := clientconn.OptionsForEndpoint(r.sensorAddr)
 	if err != nil {
 		return nil, errors.Wrapf(err, "creating connection options for %s", r.sensorAddr)
@@ -126,7 +133,7 @@ func (r *SensorRelay) createSensorConnection() (*grpc.ClientConn, error) {
 
 	conn, err := clientconn.GRPCConnection(
 		r.ctx,
-		mtls.VSOCKListenerSubject,
+		mtls.CollectorSubject,
 		r.sensorAddr,
 		opts,
 	)
