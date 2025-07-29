@@ -94,7 +94,7 @@ func NewVMWatcher(ctx context.Context, dynamicClient dynamic.Interface) (*VMWatc
 				return dynamicClient.Resource(vmiGVR).Watch(ctx, options)
 			},
 		},
-		&kubevirtv1.VirtualMachineInstance{},
+		&unstructured.Unstructured{},
 		time.Minute*10, // Resync every 10 minutes
 		cache.Indexers{},
 	)
