@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"context"
+	"fmt"
 
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -75,7 +76,7 @@ func (g CollectorGenerator) genDaemonSet(m *manifestGenerator) Resource {
 							Value: "sensor:443",
 						}, {
 							Name:  "SNI_HOSTNAME",
-							Value: "sensor.stackrox.svc",
+							Value: fmt.Sprintf("sensor.%s.svc", m.Config.Namespace),
 						}, {
 							Name:  "ROX_COLLECTOR_RUNTIME_FILTERS_ENABLED",
 							Value: "true",
@@ -125,7 +126,7 @@ func (g CollectorGenerator) genDaemonSet(m *manifestGenerator) Resource {
 						},
 						Env: []v1.EnvVar{{
 							Name:  "SENSOR_ENDPOINT",
-							Value: "sensor:443",
+							Value: fmt.Sprintf("sensor.%s.svc", m.Config.Namespace),
 						}, {
 							Name:  "VSOCK_PORT",
 							Value: "514",
