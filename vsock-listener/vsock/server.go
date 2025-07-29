@@ -3,7 +3,6 @@ package vsock
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"net"
 	"sync"
