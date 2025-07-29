@@ -204,7 +204,7 @@ spec:
         - name: PATTERNS
           value: ["**/package.json"]
         - name: SOURCE
-          value: "s3://npm-cache/{{hash}}"
+          value: "s3://cache/npm-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/npm-cache"
         - name: WORKING_DIR
@@ -232,7 +232,7 @@ spec:
         - name: PATTERNS
           value: ["**/package.json"]
         - name: TARGET
-          value: "s3://npm-cache/{{hash}}"
+          value: "s3://cache/npm-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/npm-cache"
         - name: WORKING_DIR
@@ -296,7 +296,7 @@ spec:
         - name: PATTERNS
           value: ["**/go.mod"]
         - name: SOURCE
-          value: "s3://go-mod-cache/{{hash}}"
+          value: "s3://cache/go-mod-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/go-mod-cache"
         - name: WORKING_DIR
@@ -325,7 +325,7 @@ spec:
         - name: PATTERNS
           value: ["**/go.mod"]
         - name: TARGET
-          value: "s3://go-mod-cache/{{hash}}"
+          value: "s3://cache/go-mod-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/go-mod-cache"
         - name: WORKING_DIR
@@ -368,7 +368,7 @@ spec:
         - name: PATTERNS
           value: ["**/go.mod"]
         - name: SOURCE
-          value: "s3://go-cache/{{hash}}"
+          value: "s3://cache/go-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/go-cache"
         - name: WORKING_DIR
@@ -408,7 +408,7 @@ spec:
         - name: PATTERNS
           value: ["**/go.mod"]
         - name: TARGET
-          value: "s3://go-cache/{{hash}}"
+          value: "s3://cache/go-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/go-cache"
         - name: WORKING_DIR
@@ -457,7 +457,7 @@ spec:
         - name: PATTERNS
           value: ["**/go.mod"]
         - name: TARGET
-          value: "s3://go-cache/{{hash}}"
+          value: "s3://cache/go-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/go-cache"
         - name: WORKING_DIR
@@ -504,7 +504,7 @@ spec:
         - name: PATTERNS
           value: ["**/scannerv2/go.mod"]
         - name: SOURCE
-          value: "s3://scanner-mod-cache/{{hash}}"
+          value: "s3://cache/scanner-mod-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/scanner-mod-cache"
         - name: WORKING_DIR
@@ -524,7 +524,7 @@ spec:
         - name: PATTERNS
           value: ["**/scannerv2/go.mod"]
         - name: SOURCE
-          value: "s3://scanner-cache/{{hash}}"
+          value: "s3://cache/scanner-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/scanner-cache"
         - name: WORKING_DIR
@@ -565,7 +565,7 @@ spec:
         - name: PATTERNS
           value: ["**/scannerv2/go.mod"]
         - name: TARGET
-          value: "s3://scanner-mod-cache/{{hash}}"
+          value: "s3://cache/scanner-mod-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/scanner-mod-cache"
         - name: WORKING_DIR
@@ -585,7 +585,7 @@ spec:
         - name: PATTERNS
           value: ["**/scannerv2/go.mod"]
         - name: TARGET
-          value: "s3://scanner-cache/{{hash}}"
+          value: "s3://cache/scanner-cache/{{hash}}"
         - name: CACHE_PATH
           value: "$(workspaces.shared-data.path)/scanner-cache"
         - name: WORKING_DIR
