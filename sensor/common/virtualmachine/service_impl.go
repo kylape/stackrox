@@ -70,8 +70,7 @@ func (s *serviceImpl) RegisterServiceHandler(context.Context, *runtime.ServeMux,
 
 // AuthFuncOverride specifies the auth criteria for this API.
 func (s *serviceImpl) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
-	// TODO: Update who is authorized
-	if err := idcheck.AdmissionControlOnly().Authorized(ctx, fullMethodName); err != nil {
+	if err := idcheck.CollectorOnly().Authorized(ctx, fullMethodName); err != nil {
 		return ctx, errors.Wrapf(err, "virtual machine authorization for %q", fullMethodName)
 	}
 	return ctx, nil

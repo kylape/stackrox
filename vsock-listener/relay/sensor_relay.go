@@ -125,7 +125,7 @@ func (r *SensorRelay) createSensorConnection() (*grpc.ClientConn, error) {
 	// Log certificate paths for debugging
 	log.Infof("Using certificates: cert=%s, key=%s, ca=%s", certPath, keyPath, caPath)
 
-	// Use VM agent certificates for authentication
+	// Use collector certificates for authentication
 	opts, err := clientconn.OptionsForEndpoint(r.sensorAddr)
 	if err != nil {
 		return nil, errors.Wrapf(err, "creating connection options for %s", r.sensorAddr)
