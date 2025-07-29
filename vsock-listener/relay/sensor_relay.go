@@ -215,4 +215,3 @@ func (r *SensorRelay) convertToVMMessage(data *VMData) *storage.VirtualMachine {
 
 	return &vm
 }
-
