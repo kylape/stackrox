@@ -130,7 +130,7 @@ func (r *SensorRelay) createSensorConnection() (*grpc.ClientConn, error) {
 		log.Errorf("Failed to configure certificates: %v. Connection to sensor might fail.", err)
 	}
 
-	conn, err := clientconn.AuthenticatedGRPCConnection(r.ctx, r.sensorAddr, mtls.CollectorSubject)
+	conn, err := clientconn.AuthenticatedGRPCConnection(r.ctx, r.sensorAddr, mtls.SensorSubject)
 
 	if err != nil {
 		return nil, errors.Wrapf(err, "creating gRPC connection to sensor at %s", r.sensorAddr)
