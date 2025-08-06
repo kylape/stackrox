@@ -60,7 +60,7 @@ TAG := $(BUILD_TAG)
 endif
 
 ifeq ($(TAG),)
-TAG=$(shell git describe --tags --abbrev=10 --dirty --long --exclude '*-nightly-*')
+TAG=$(shell git rev-parse --abbrev-ref HEAD)
 endif
 
 # Set expiration on Quay.io for non-release tags.
