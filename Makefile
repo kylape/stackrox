@@ -909,7 +909,7 @@ bin/migrator: $(shell find migrator/ -name *.go) ${pkg}
 
 central: bin/central bin/config-controller bin/migrator bin/scanner-v4
 
-secured-cluster: bin/kubernetes bin/admission-control bin/compliance bin/upgrader bin/init-tls-certs bin/vsock-listener
+secured-cluster: bin/kubernetes bin/admission-control bin/compliance bin/upgrader bin/init-tls-certs
 
 bin/scanner-v4: $(shell find scanner/ -name *.go) ${pkg}
 	CGO_ENABLED=0 go build $(DEV_LD_FLAGS) -o $@ ./scanner/cmd/scanner
@@ -930,9 +930,6 @@ bin/updater: $(shell find scannerv2/ -name *.go)
 
 bin/agent: $(shell find agent/ -name *.go) ${pkg}
 	CGO_ENABLED=0 go build $(DEV_LD_FLAGS) -o $@ ./agent
-
-bin/vsock-listener: $(shell find vsock-listener/ -name *.go) ${pkg}
-	CGO_ENABLED=0 go build $(DEV_LD_FLAGS) -o $@ ./vsock-listener
 
 bin/collector: $(shell find collector/ -name *.go) $(shell find collector/ -name *.cpp)
 	cmake --preset=vcpkg collector 
