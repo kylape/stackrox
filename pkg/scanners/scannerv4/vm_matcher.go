@@ -16,7 +16,7 @@ import (
 const (
 	// VMMockDigest is a mock digest used for VM scanning (following node scanning pattern)
 	VMMockDigest = "registry/repository@sha256:deadb33fdeadb33fdeadb33fdeadb33fdeadb33fdeadb33fdeadb33fdeadb33f"
-	
+
 	// VMScanTimeout defines timeout for VM vulnerability scanning
 	VMScanTimeout = 5 * time.Minute
 )
@@ -41,11 +41,11 @@ func (m *VMVulnerabilityMatcher) MatchVulnerabilities(ctx context.Context, vm *s
 	if vm == nil {
 		return nil, fmt.Errorf("VM cannot be nil")
 	}
-	
+
 	if len(packages) == 0 {
 		log.Debugf("No packages provided for VM %s, returning scan with no packages note", vm.GetId())
 		return &storage.VirtualMachineScan{
-			ScannerVersion: "Scanner V4", 
+			ScannerVersion: "Scanner V4",
 			DataSource:     &storage.DataSource{Name: "Scanner V4"},
 			Notes:          []storage.VirtualMachineScan_Note{storage.VirtualMachineScan_PARTIAL_SCAN_DATA},
 		}, nil
@@ -70,10 +70,10 @@ func (m *VMVulnerabilityMatcher) MatchVulnerabilities(ctx context.Context, vm *s
 
 	// Convert Scanner V4 results to storage format
 	vmScan := ToVMScan(vulnerabilityReport, vm.GetId())
-	
-	log.Infof("VM vulnerability matching completed for VM %s: found %d components with vulnerabilities", 
+
+	log.Infof("VM vulnerability matching completed for VM %s: found %d components with vulnerabilities",
 		vm.GetId(), len(vmScan.GetComponents()))
-	
+
 	return vmScan, nil
 }
 
@@ -88,7 +88,7 @@ func (m *VMVulnerabilityMatcher) MatchVulnerabilitiesFromComponents(ctx context.
 	if vm.GetScan() != nil {
 		components = vm.GetScan().GetComponents()
 	}
-	
+
 	packages := VMPackageDataFromStorageComponents(components)
 	return m.MatchVulnerabilities(ctx, vm, packages, distribution)
 }
@@ -96,7 +96,7 @@ func (m *VMVulnerabilityMatcher) MatchVulnerabilitiesFromComponents(ctx context.
 // getVMVulnerabilityReport makes the Scanner V4 request to get vulnerabilities
 func (m *VMVulnerabilityMatcher) getVMVulnerabilityReport(ctx context.Context, vmID string, indexReport *v4.IndexReport) (*v4.VulnerabilityReport, error) {
 	log.Debugf("Requesting vulnerability scan for VM %s", vmID)
-	
+
 	// Parse mock digest for VM scanning (following node scanning pattern)
 	vmDigest, err := name.NewDigest(VMMockDigest)
 	if err != nil {
@@ -186,7 +186,7 @@ func ValidateVMPackageData(packages []*VMPackageData) error {
 			return fmt.Errorf("package %s has empty version", pkg.Name)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -198,7 +198,7 @@ func ExtractVMDistributionFromFacts(facts map[string]string) *VMDistribution {
 
 	// Look for common OS identification fields in VM facts
 	var name, version, versionID, cpe string
-	
+
 	// Check various possible fact keys
 	if osName, ok := facts["os_name"]; ok {
 		name = osName

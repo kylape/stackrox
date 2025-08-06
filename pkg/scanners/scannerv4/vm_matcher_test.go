@@ -18,7 +18,7 @@ import (
 // mockScannerClient is a simple mock implementation for testing
 type mockScannerClient struct {
 	getVulnerabilitiesFunc func(ctx context.Context, digest name.Digest, contents *v4.Contents) (*v4.VulnerabilityReport, error)
-	closeFunc             func() error
+	closeFunc              func() error
 }
 
 func (m *mockScannerClient) GetImageIndex(ctx context.Context, hashID string) (*v4.IndexReport, bool, error) {
@@ -89,7 +89,7 @@ func TestVMVulnerabilityMatcher_MatchVulnerabilities(t *testing.T) {
 		matcher := NewVMVulnerabilityMatcher(client)
 
 		vm := &storage.VirtualMachine{Id: "vm-123"}
-		
+
 		result, err := matcher.MatchVulnerabilities(ctx, vm, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -105,7 +105,7 @@ func TestVMVulnerabilityMatcher_MatchVulnerabilities(t *testing.T) {
 		packages := []*VMPackageData{
 			{Name: "", Version: "1.0"}, // Invalid: empty name
 		}
-		
+
 		_, err := matcher.MatchVulnerabilities(ctx, vm, packages, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid package data")
@@ -156,13 +156,13 @@ func TestVMVulnerabilityMatcher_MatchVulnerabilities(t *testing.T) {
 					},
 					Vulnerabilities: map[string]*v4.VulnerabilityReport_Vulnerability{
 						"vuln-1": {
-							Id:          "vuln-1",
-							Name:        "CVE-2023-1234",
-							Description: "Test vulnerability",
-							Severity:    "HIGH",
+							Id:                 "vuln-1",
+							Name:               "CVE-2023-1234",
+							Description:        "Test vulnerability",
+							Severity:           "HIGH",
 							NormalizedSeverity: v4.VulnerabilityReport_Vulnerability_SEVERITY_IMPORTANT,
-							Link:        "https://nvd.nist.gov/vuln/detail/CVE-2023-1234",
-							Issued:      &timestamppb.Timestamp{Seconds: 1609459200},
+							Link:               "https://nvd.nist.gov/vuln/detail/CVE-2023-1234",
+							Issued:             &timestamppb.Timestamp{Seconds: 1609459200},
 						},
 					},
 				}, nil
@@ -178,7 +178,6 @@ func TestVMVulnerabilityMatcher_MatchVulnerabilities(t *testing.T) {
 			Name:    "ubuntu",
 			Version: "20.04",
 		}
-
 
 		result, err := matcher.MatchVulnerabilities(ctx, vm, packages, distribution)
 		require.NoError(t, err)
@@ -216,7 +215,7 @@ func TestVMVulnerabilityMatcher_MatchVulnerabilitiesFromComponents(t *testing.T)
 		matcher := NewVMVulnerabilityMatcher(client)
 
 		vm := &storage.VirtualMachine{Id: "vm-123"}
-		
+
 		result, err := matcher.MatchVulnerabilitiesFromComponents(ctx, vm, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -473,8 +472,8 @@ func TestExtractVMDistributionFromFacts(t *testing.T) {
 		}
 		result := ExtractVMDistributionFromFacts(facts)
 		require.NotNil(t, result)
-		assert.Equal(t, "ubuntu", result.Name)        // Should prefer os_name
-		assert.Equal(t, "20.04", result.Version)     // Should prefer os_version
+		assert.Equal(t, "ubuntu", result.Name)   // Should prefer os_name
+		assert.Equal(t, "20.04", result.Version) // Should prefer os_version
 		assert.Empty(t, result.VersionID)
 		assert.Empty(t, result.CPE)
 	})

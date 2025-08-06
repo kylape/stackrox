@@ -14,9 +14,9 @@ import (
 
 // mockVMEnricher is a test mock for the VM enricher interface
 type mockVMEnricher struct {
-	enrichVMFunc                   func(ctx context.Context, vm *storage.VirtualMachine) error
-	enrichVMWithPackagesFunc       func(ctx context.Context, vm *storage.VirtualMachine, packages []*scannerv4.VMPackageData, distribution *scannerv4.VMDistribution) error
-	enrichVMWithFactsFunc          func(ctx context.Context, vm *storage.VirtualMachine, packages []*scannerv4.VMPackageData, facts map[string]string) error
+	enrichVMFunc             func(ctx context.Context, vm *storage.VirtualMachine) error
+	enrichVMWithPackagesFunc func(ctx context.Context, vm *storage.VirtualMachine, packages []*scannerv4.VMPackageData, distribution *scannerv4.VMDistribution) error
+	enrichVMWithFactsFunc    func(ctx context.Context, vm *storage.VirtualMachine, packages []*scannerv4.VMPackageData, facts map[string]string) error
 }
 
 func (m *mockVMEnricher) EnrichVM(ctx context.Context, vm *storage.VirtualMachine) error {
@@ -47,7 +47,7 @@ func TestNew(t *testing.T) {
 		mockEnricher := &mockVMEnricher{}
 		enricher := New(mockEnricher)
 		assert.NotNil(t, enricher)
-		
+
 		impl, ok := enricher.(*enricherImpl)
 		require.True(t, ok)
 		assert.Equal(t, mockEnricher, impl.vmEnricher)
@@ -69,10 +69,10 @@ func TestEnricherImpl_EnrichVMWithVulnerabilities(t *testing.T) {
 				return nil
 			},
 		}
-		
+
 		enricher := New(mockEnricher)
 		vm := &storage.VirtualMachine{Id: "vm-123"}
-		
+
 		err := enricher.EnrichVMWithVulnerabilities(ctx, vm)
 		require.NoError(t, err)
 		assert.NotNil(t, vm.Scan)
@@ -85,10 +85,10 @@ func TestEnricherImpl_EnrichVMWithVulnerabilities(t *testing.T) {
 				return errors.New("enrichment failed")
 			},
 		}
-		
+
 		enricher := New(mockEnricher)
 		vm := &storage.VirtualMachine{Id: "vm-123"}
-		
+
 		err := enricher.EnrichVMWithVulnerabilities(ctx, vm)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "enrichment failed")
@@ -111,7 +111,7 @@ func TestEnricherImpl_EnrichVMWithPackagesAndFacts(t *testing.T) {
 				return nil
 			},
 		}
-		
+
 		enricher := New(mockEnricher)
 		vm := &storage.VirtualMachine{Id: "vm-456"}
 		packages := []*scannerv4.VMPackageData{
@@ -121,7 +121,7 @@ func TestEnricherImpl_EnrichVMWithPackagesAndFacts(t *testing.T) {
 			"os_name":    "ubuntu",
 			"os_version": "20.04",
 		}
-		
+
 		err := enricher.EnrichVMWithPackagesAndFacts(ctx, vm, packages, facts)
 		require.NoError(t, err)
 		require.NotNil(t, vm.Scan)
@@ -137,13 +137,13 @@ func TestEnricherImpl_EnrichVMWithPackagesAndFacts(t *testing.T) {
 				return errors.New("facts enrichment failed")
 			},
 		}
-		
+
 		enricher := New(mockEnricher)
 		vm := &storage.VirtualMachine{Id: "vm-456"}
 		packages := []*scannerv4.VMPackageData{
 			{Name: "invalid", Version: "", SourceType: storage.SourceType_OS},
 		}
-		
+
 		err := enricher.EnrichVMWithPackagesAndFacts(ctx, vm, packages, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "facts enrichment failed")
@@ -167,7 +167,7 @@ func TestEnricherImpl_CreateVMScanFromPackages(t *testing.T) {
 				return nil
 			},
 		}
-		
+
 		enricher := New(mockEnricher)
 		packages := []*scannerv4.VMPackageData{
 			{Name: "gcc", Version: "9.3.0", SourceType: storage.SourceType_OS},
@@ -177,7 +177,7 @@ func TestEnricherImpl_CreateVMScanFromPackages(t *testing.T) {
 			"os_name":    "rhel",
 			"os_version": "8.5",
 		}
-		
+
 		scan, err := enricher.CreateVMScanFromPackages(ctx, "vm-rhel", packages, facts)
 		require.NoError(t, err)
 		require.NotNil(t, scan)
@@ -194,12 +194,12 @@ func TestEnricherImpl_CreateVMScanFromPackages(t *testing.T) {
 				return errors.New("scan creation failed")
 			},
 		}
-		
+
 		enricher := New(mockEnricher)
 		packages := []*scannerv4.VMPackageData{
 			{Name: "broken", Version: "1.0", SourceType: storage.SourceType_OS},
 		}
-		
+
 		scan, err := enricher.CreateVMScanFromPackages(ctx, "vm-error", packages, nil)
 		assert.Error(t, err)
 		assert.Nil(t, scan)
@@ -216,9 +216,9 @@ func TestEnricherImpl_CreateVMScanFromPackages(t *testing.T) {
 				return nil
 			},
 		}
-		
+
 		enricher := New(mockEnricher)
-		
+
 		scan, err := enricher.CreateVMScanFromPackages(ctx, "vm-empty", nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, scan)
@@ -237,9 +237,9 @@ func TestSetSingleton(t *testing.T) {
 	t.Run("set custom singleton", func(t *testing.T) {
 		mockEnricher := &mockVMEnricher{}
 		customEnricher := New(mockEnricher)
-		
+
 		SetSingleton(customEnricher)
-		
+
 		// Verify the singleton was set correctly
 		assert.Equal(t, customEnricher, enricherInstance)
 	})

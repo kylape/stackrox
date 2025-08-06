@@ -109,32 +109,32 @@ func TestLogLevelEnvironmentVariable(t *testing.T) {
 
 func TestLogEncodingEnvironmentVariable(t *testing.T) {
 	tests := []struct {
-		name              string
-		envValue          string
-		expectedEncoding  string
-		expectedTimeFunc  zapcore.TimeEncoder
-		shouldPanic       bool
+		name             string
+		envValue         string
+		expectedEncoding string
+		expectedTimeFunc zapcore.TimeEncoder
+		shouldPanic      bool
 	}{
 		{
-			name:              "console encoding",
-			envValue:          "console",
-			expectedEncoding:  console.encoding,
-			expectedTimeFunc:  console.encodeTime,
-			shouldPanic:       false,
+			name:             "console encoding",
+			envValue:         "console",
+			expectedEncoding: console.encoding,
+			expectedTimeFunc: console.encodeTime,
+			shouldPanic:      false,
 		},
 		{
-			name:              "json encoding",
-			envValue:          "json",
-			expectedEncoding:  json.encoding,
-			expectedTimeFunc:  json.encodeTime,
-			shouldPanic:       false,
+			name:             "json encoding",
+			envValue:         "json",
+			expectedEncoding: json.encoding,
+			expectedTimeFunc: json.encodeTime,
+			shouldPanic:      false,
 		},
 		{
-			name:              "empty string defaults to console",
-			envValue:          "",
-			expectedEncoding:  console.encoding,
-			expectedTimeFunc:  console.encodeTime,
-			shouldPanic:       false,
+			name:             "empty string defaults to console",
+			envValue:         "",
+			expectedEncoding: console.encoding,
+			expectedTimeFunc: console.encodeTime,
+			shouldPanic:      false,
 		},
 		{
 			name:        "invalid encoding panics",
@@ -184,10 +184,10 @@ func TestLogEncodingEnvironmentVariable(t *testing.T) {
 
 func TestModuleLogLevelsEnvironmentVariable(t *testing.T) {
 	tests := []struct {
-		name                string
-		envValue            string
-		expectedLevels      map[string]zapcore.Level
-		expectedErrorCount  int
+		name               string
+		envValue           string
+		expectedLevels     map[string]zapcore.Level
+		expectedErrorCount int
 	}{
 		{
 			name:     "single module",

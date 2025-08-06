@@ -19,7 +19,7 @@ import (
 // mockScannerClient is a simple mock implementation for testing
 type mockScannerClient struct {
 	getVulnerabilitiesFunc func(ctx context.Context, digest name.Digest, contents *v4.Contents) (*v4.VulnerabilityReport, error)
-	closeFunc             func() error
+	closeFunc              func() error
 }
 
 func (m *mockScannerClient) GetImageIndex(ctx context.Context, hashID string) (*v4.IndexReport, bool, error) {
@@ -63,7 +63,7 @@ func TestNew(t *testing.T) {
 		client := &mockScannerClient{}
 		enricher := New(client)
 		assert.NotNil(t, enricher)
-		
+
 		impl, ok := enricher.(*enricherImpl)
 		require.True(t, ok)
 		assert.NotNil(t, impl.vmEnricher)
@@ -82,7 +82,7 @@ func TestEnricherImpl_EnrichVM(t *testing.T) {
 	t.Run("nil VM", func(t *testing.T) {
 		client := &mockScannerClient{}
 		enricher := New(client)
-		
+
 		err := enricher.EnrichVM(ctx, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "VM cannot be nil")
@@ -101,11 +101,11 @@ func TestEnricherImpl_EnrichVM(t *testing.T) {
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{
 			Id: "vm-123",
 		}
-		
+
 		err := enricher.EnrichVM(ctx, vm)
 		require.NoError(t, err)
 		assert.NotNil(t, vm.Scan)
@@ -126,20 +126,20 @@ func TestEnricherImpl_EnrichVM(t *testing.T) {
 					},
 					Vulnerabilities: map[string]*v4.VulnerabilityReport_Vulnerability{
 						"vuln-1": {
-							Id:          "vuln-1",
-							Name:        "CVE-2023-1234",
-							Description: "Test vulnerability",
-							Severity:    "HIGH",
+							Id:                 "vuln-1",
+							Name:               "CVE-2023-1234",
+							Description:        "Test vulnerability",
+							Severity:           "HIGH",
 							NormalizedSeverity: v4.VulnerabilityReport_Vulnerability_SEVERITY_IMPORTANT,
-							Link:        "https://nvd.nist.gov/vuln/detail/CVE-2023-1234",
-							Issued:      &timestamppb.Timestamp{Seconds: 1609459200},
+							Link:               "https://nvd.nist.gov/vuln/detail/CVE-2023-1234",
+							Issued:             &timestamppb.Timestamp{Seconds: 1609459200},
 						},
 					},
 				}, nil
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{
 			Id: "vm-123",
 			Scan: &storage.VirtualMachineScan{
@@ -152,17 +152,17 @@ func TestEnricherImpl_EnrichVM(t *testing.T) {
 				},
 			},
 		}
-		
+
 		err := enricher.EnrichVM(ctx, vm)
 		require.NoError(t, err)
 		require.NotNil(t, vm.Scan)
 		require.Len(t, vm.Scan.Components, 1)
-		
+
 		component := vm.Scan.Components[0]
 		assert.Equal(t, "curl", component.Name)
 		assert.Equal(t, "7.68.0", component.Version)
 		require.Len(t, component.Vulns, 1)
-		
+
 		vuln := component.Vulns[0]
 		assert.Equal(t, "CVE-2023-1234", vuln.Cve)
 		assert.Equal(t, storage.EmbeddedVulnerability_VIRTUAL_MACHINE_VULNERABILITY, vuln.VulnerabilityType)
@@ -176,7 +176,7 @@ func TestEnricherImpl_EnrichVM(t *testing.T) {
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{
 			Id: "vm-123",
 			Facts: map[string]string{
@@ -184,7 +184,7 @@ func TestEnricherImpl_EnrichVM(t *testing.T) {
 				"os_version": "20.04",
 			},
 		}
-		
+
 		err := enricher.EnrichVM(ctx, vm)
 		require.NoError(t, err)
 		assert.NotNil(t, vm.Scan)
@@ -200,7 +200,7 @@ func TestEnricherImpl_EnrichVM(t *testing.T) {
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{
 			Id: "vm-123",
 			Scan: &storage.VirtualMachineScan{
@@ -209,7 +209,7 @@ func TestEnricherImpl_EnrichVM(t *testing.T) {
 				},
 			},
 		}
-		
+
 		err := enricher.EnrichVM(ctx, vm)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "enriching VM vm-123")
@@ -222,7 +222,7 @@ func TestEnricherImpl_EnrichVMWithPackages(t *testing.T) {
 	t.Run("nil VM", func(t *testing.T) {
 		client := &mockScannerClient{}
 		enricher := New(client)
-		
+
 		err := enricher.EnrichVMWithPackages(ctx, nil, nil, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "VM cannot be nil")
@@ -240,7 +240,7 @@ func TestEnricherImpl_EnrichVMWithPackages(t *testing.T) {
 							{
 								Id:         "vm-dist-ubuntu",
 								Name:       "ubuntu",
-								Version:    "20.04", 
+								Version:    "20.04",
 								PrettyName: "Ubuntu 20.04",
 							},
 						},
@@ -251,7 +251,7 @@ func TestEnricherImpl_EnrichVMWithPackages(t *testing.T) {
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{Id: "vm-456"}
 		packages := []*scannerv4.VMPackageData{
 			{Name: "python", Version: "3.8", SourceType: storage.SourceType_PYTHON},
@@ -260,12 +260,12 @@ func TestEnricherImpl_EnrichVMWithPackages(t *testing.T) {
 			Name:    "ubuntu",
 			Version: "20.04",
 		}
-		
+
 		err := enricher.EnrichVMWithPackages(ctx, vm, packages, distribution)
 		require.NoError(t, err)
 		require.NotNil(t, vm.Scan)
 		require.Len(t, vm.Scan.Components, 1)
-		
+
 		component := vm.Scan.Components[0]
 		assert.Equal(t, "python", component.Name)
 		assert.Equal(t, "3.8", component.Version)
@@ -279,12 +279,12 @@ func TestEnricherImpl_EnrichVMWithPackages(t *testing.T) {
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{Id: "vm-789"}
 		packages := []*scannerv4.VMPackageData{
 			{Name: "nginx", Version: "1.18", SourceType: storage.SourceType_OS},
 		}
-		
+
 		err := enricher.EnrichVMWithPackages(ctx, vm, packages, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "enriching VM vm-789 with packages")
@@ -297,7 +297,7 @@ func TestEnricherImpl_EnrichVMWithFacts(t *testing.T) {
 	t.Run("nil VM", func(t *testing.T) {
 		client := &mockScannerClient{}
 		enricher := New(client)
-		
+
 		err := enricher.EnrichVMWithFacts(ctx, nil, nil, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "VM cannot be nil")
@@ -326,7 +326,7 @@ func TestEnricherImpl_EnrichVMWithFacts(t *testing.T) {
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{Id: "vm-rhel"}
 		packages := []*scannerv4.VMPackageData{
 			{Name: "gcc", Version: "9.3.0", SourceType: storage.SourceType_OS},
@@ -336,12 +336,12 @@ func TestEnricherImpl_EnrichVMWithFacts(t *testing.T) {
 			"os_version": "8.5",
 			"hostname":   "test-vm",
 		}
-		
+
 		err := enricher.EnrichVMWithFacts(ctx, vm, packages, facts)
 		require.NoError(t, err)
 		require.NotNil(t, vm.Scan)
 		require.Len(t, vm.Scan.Components, 1)
-		
+
 		component := vm.Scan.Components[0]
 		assert.Equal(t, "gcc", component.Name)
 		assert.Equal(t, "9.3.0", component.Version)
@@ -363,7 +363,7 @@ func TestEnricherImpl_EnrichVMWithFacts(t *testing.T) {
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{Id: "vm-unknown"}
 		packages := []*scannerv4.VMPackageData{
 			{Name: "vim", Version: "8.2", SourceType: storage.SourceType_OS},
@@ -372,12 +372,12 @@ func TestEnricherImpl_EnrichVMWithFacts(t *testing.T) {
 			"hostname": "test-vm",
 			"memory":   "8GB",
 		}
-		
+
 		err := enricher.EnrichVMWithFacts(ctx, vm, packages, facts)
 		require.NoError(t, err)
 		require.NotNil(t, vm.Scan)
 		require.Len(t, vm.Scan.Components, 1)
-		
+
 		component := vm.Scan.Components[0]
 		assert.Equal(t, "vim", component.Name)
 		assert.Equal(t, "8.2", component.Version)
@@ -390,7 +390,7 @@ func TestEnricherImpl_EnrichVMWithFacts(t *testing.T) {
 			},
 		}
 		enricher := New(client)
-		
+
 		vm := &storage.VirtualMachine{Id: "vm-error"}
 		packages := []*scannerv4.VMPackageData{
 			{Name: "package", Version: "1.0", SourceType: storage.SourceType_OS},
@@ -398,7 +398,7 @@ func TestEnricherImpl_EnrichVMWithFacts(t *testing.T) {
 		facts := map[string]string{
 			"os_name": "ubuntu",
 		}
-		
+
 		err := enricher.EnrichVMWithFacts(ctx, vm, packages, facts)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "enriching VM vm-error with facts")

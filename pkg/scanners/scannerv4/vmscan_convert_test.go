@@ -206,13 +206,13 @@ func TestToVMScan(t *testing.T) {
 			},
 			Vulnerabilities: map[string]*v4.VulnerabilityReport_Vulnerability{
 				"vuln-1": {
-					Id:          "vuln-1",
-					Name:        "CVE-2023-1234",
-					Description: "Test vulnerability",
-					Severity:    "HIGH",
+					Id:                 "vuln-1",
+					Name:               "CVE-2023-1234",
+					Description:        "Test vulnerability",
+					Severity:           "HIGH",
 					NormalizedSeverity: v4.VulnerabilityReport_Vulnerability_SEVERITY_IMPORTANT,
-					Link:        "https://nvd.nist.gov/vuln/detail/CVE-2023-1234",
-					Issued:      &timestamppb.Timestamp{Seconds: 1609459200}, // 2021-01-01
+					Link:               "https://nvd.nist.gov/vuln/detail/CVE-2023-1234",
+					Issued:             &timestamppb.Timestamp{Seconds: 1609459200}, // 2021-01-01
 				},
 			},
 		}

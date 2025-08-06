@@ -56,7 +56,7 @@ func ToVMIndexReport(vmID string, packages []*VMPackageData, distribution *VMDis
 	if vmID == "" {
 		return nil, fmt.Errorf("VM ID cannot be empty")
 	}
-	
+
 	if len(packages) == 0 {
 		return nil, fmt.Errorf("no packages provided for VM %s", vmID)
 	}
@@ -100,9 +100,9 @@ func toVMContents(packages []*VMPackageData, distribution *VMDistribution) (*v4.
 		if pkg == nil {
 			continue
 		}
-		
+
 		pkgID := fmt.Sprintf("vm-pkg-%d-%s-%s", i, pkg.Name, pkg.Version)
-		
+
 		v4Pkg := &v4.Package{
 			Id:      pkgID,
 			Name:    pkg.Name,
@@ -216,11 +216,11 @@ func toVMStorageComponents(r *v4.VulnerabilityReport) []*storage.EmbeddedImageSc
 // getVMPackageVulns extracts vulnerabilities for a specific VM package
 func getVMPackageVulns(packageID string, r *v4.VulnerabilityReport) []*storage.EmbeddedVulnerability {
 	vulns := make([]*storage.EmbeddedVulnerability, 0)
-	
+
 	if r.GetPackageVulnerabilities() == nil {
 		return vulns
 	}
-	
+
 	mapping, ok := r.GetPackageVulnerabilities()[packageID]
 	if !ok {
 		return vulns // No vulnerabilities for this package
@@ -261,7 +261,7 @@ func convertVMVulnerability(v *v4.VulnerabilityReport_Vulnerability) *storage.Em
 		log.Warnf("Failed to set CVSS scores for VM vulnerability %s: %v", v.GetName(), err)
 	}
 	maybeOverwriteSeverity(converted)
-	
+
 	// Set fixed version if available
 	if v.GetFixedInVersion() != "" {
 		converted.SetFixedBy = &storage.EmbeddedVulnerability_FixedBy{
@@ -279,7 +279,7 @@ func createVMEmbeddedComponent(pkg *v4.Package, vulns []*storage.EmbeddedVulnera
 	}
 
 	sourceType := packageKindToSourceType(pkg.GetKind())
-	
+
 	return &storage.EmbeddedImageScanComponent{
 		Name:         pkg.GetName(),
 		Version:      pkg.GetVersion(),
@@ -317,16 +317,16 @@ func extractOperatingSystem(r *v4.VulnerabilityReport) string {
 	if r == nil || r.GetContents() == nil {
 		return "Unknown"
 	}
-	
+
 	distributions := r.GetContents().GetDistributions()
 	if len(distributions) == 0 {
 		return "Unknown"
 	}
-	
+
 	dist := distributions[0] // Use first distribution
 	if dist.GetPrettyName() != "" {
 		return dist.GetPrettyName()
 	}
-	
+
 	return fmt.Sprintf("%s %s", dist.GetName(), dist.GetVersion())
 }

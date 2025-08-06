@@ -26,7 +26,7 @@ func newEnricherWithDefaults() VMVulnerabilityEnricher {
 	// TODO: Replace with actual Scanner V4 client initialization
 	// This would typically involve reading configuration from environment variables
 	// or configuration files to set up the Scanner V4 endpoints.
-	
+
 	// For now, return nil to indicate that this needs proper configuration
 	// In the actual implementation, this would create a proper Scanner V4 client:
 	//
@@ -40,7 +40,7 @@ func newEnricherWithDefaults() VMVulnerabilityEnricher {
 	//
 	// vmEnricher := vmEnricher.New(scannerClient)
 	// return New(vmEnricher)
-	
+
 	return nil
 }
 
