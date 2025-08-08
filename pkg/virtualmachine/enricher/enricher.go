@@ -25,6 +25,6 @@ type VMEnricher interface {
 // New returns a new VMEnricher using the provided Scanner V4 client
 func New(scannerClient client.Scanner) VMEnricher {
 	return &enricherImpl{
-		vmEnricher: scannerv4.NewVMVulnerabilityEnricher(scannerClient),
+		vmMatcher: scannerv4.NewVMVulnerabilityMatcher(scannerClient),
 	}
 }

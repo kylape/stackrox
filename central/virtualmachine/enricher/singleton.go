@@ -1,47 +1,59 @@
 package enricher
 
 import (
+	"context"
+
+	"github.com/stackrox/rox/pkg/env"
+	"github.com/stackrox/rox/pkg/logging"
+	"github.com/stackrox/rox/pkg/scannerv4/client"
 	"github.com/stackrox/rox/pkg/sync"
+	vmEnricher "github.com/stackrox/rox/pkg/virtualmachine/enricher"
 )
 
 var (
 	enricherInstance VMVulnerabilityEnricher
 	enricherInit     sync.Once
+	log              = logging.LoggerForModule()
 )
 
 // Singleton returns the singleton instance of the VM vulnerability enricher.
 func Singleton() VMVulnerabilityEnricher {
 	enricherInit.Do(func() {
-		// TODO: In a real implementation, this should use proper Scanner V4 client configuration
-		// For now, this is a placeholder that would need to be integrated with the actual Scanner V4 setup
 		enricherInstance = newEnricherWithDefaults()
 	})
 	return enricherInstance
 }
 
-// newEnricherWithDefaults creates a default VM enricher instance
-// NOTE: This is a placeholder implementation. In production, this should be properly configured
-// with the actual Scanner V4 client configuration from the environment or configuration.
+// newEnricherWithDefaults creates a default VM enricher instance using Scanner V4 client configuration
 func newEnricherWithDefaults() VMVulnerabilityEnricher {
-	// TODO: Replace with actual Scanner V4 client initialization
-	// This would typically involve reading configuration from environment variables
-	// or configuration files to set up the Scanner V4 endpoints.
+	ctx := context.Background()
 
-	// For now, return nil to indicate that this needs proper configuration
-	// In the actual implementation, this would create a proper Scanner V4 client:
-	//
-	// scannerClient, err := client.NewGRPCScanner(ctx,
-	//     client.WithIndexerAddress(indexerEndpoint),
-	//     client.WithMatcherAddress(matcherEndpoint),
-	// )
-	// if err != nil {
-	//     return nil
-	// }
-	//
-	// vmEnricher := vmEnricher.New(scannerClient)
-	// return New(vmEnricher)
+	// Create Scanner V4 client with default configuration
+	// The client will automatically use the configured namespace and service endpoints
+	scannerClient, err := client.NewGRPCScanner(ctx,
+		client.WithIndexerAddress(getIndexerAddress()),
+		client.WithMatcherAddress(getMatcherAddress()),
+	)
+	if err != nil {
+		log.Errorf("Failed to create Scanner V4 client: %v", err)
+		return nil
+	}
 
-	return nil
+	// Create the VM enricher using the Scanner V4 client
+	vmEnricher := vmEnricher.New(scannerClient)
+	return New(vmEnricher)
+}
+
+// getIndexerAddress returns the Scanner V4 indexer service address
+func getIndexerAddress() string {
+	// Default indexer address using the current namespace
+	return "scanner-v4-indexer." + env.Namespace.Setting() + ".svc:8443"
+}
+
+// getMatcherAddress returns the Scanner V4 matcher service address
+func getMatcherAddress() string {
+	// Default matcher address using the current namespace
+	return "scanner-v4-matcher." + env.Namespace.Setting() + ".svc:8443"
 }
 
 // SetSingleton sets the singleton instance. This is primarily for testing purposes.

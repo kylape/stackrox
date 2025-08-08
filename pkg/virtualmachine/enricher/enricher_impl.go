@@ -16,7 +16,7 @@ var (
 )
 
 type enricherImpl struct {
-	vmEnricher *scannerv4.VMVulnerabilityEnricher
+	vmMatcher *scannerv4.VMVulnerabilityMatcher
 }
 
 // EnrichVM enriches a VM with vulnerability scan data using existing components
@@ -33,10 +33,15 @@ func (e *enricherImpl) EnrichVM(ctx context.Context, vm *storage.VirtualMachine)
 		distribution = scannerv4.ExtractVMDistributionFromFacts(vm.GetFacts())
 	}
 
-	err := e.vmEnricher.EnrichVM(ctx, vm, distribution)
+	// Use the matcher to get the scan, then update the VM
+	scan, err := e.vmMatcher.MatchVulnerabilitiesFromComponents(ctx, vm, distribution)
 	if err != nil {
 		return fmt.Errorf("enriching VM %s: %w", vm.GetId(), err)
 	}
+
+	// Update VM with scan results
+	vm.Scan = scan
+	vm.LastUpdated = scan.GetScanTime()
 
 	log.Infof("Successfully enriched VM %s with vulnerabilities", vm.GetId())
 	return nil
@@ -50,10 +55,15 @@ func (e *enricherImpl) EnrichVMWithPackages(ctx context.Context, vm *storage.Vir
 
 	log.Debugf("Enriching VM %s with %d provided packages", vm.GetId(), len(packages))
 
-	err := e.vmEnricher.EnrichVMWithPackages(ctx, vm, packages, distribution)
+	// Use the matcher to get the scan, then update the VM
+	scan, err := e.vmMatcher.MatchVulnerabilities(ctx, vm, packages, distribution)
 	if err != nil {
 		return fmt.Errorf("enriching VM %s with packages: %w", vm.GetId(), err)
 	}
+
+	// Update VM with scan results
+	vm.Scan = scan
+	vm.LastUpdated = scan.GetScanTime()
 
 	log.Infof("Successfully enriched VM %s with vulnerabilities from %d packages", vm.GetId(), len(packages))
 	return nil
@@ -75,10 +85,15 @@ func (e *enricherImpl) EnrichVMWithFacts(ctx context.Context, vm *storage.Virtua
 		log.Debugf("No distribution information found in facts for VM %s", vm.GetId())
 	}
 
-	err := e.vmEnricher.EnrichVMWithPackages(ctx, vm, packages, distribution)
+	// Use the matcher to get the scan, then update the VM
+	scan, err := e.vmMatcher.MatchVulnerabilities(ctx, vm, packages, distribution)
 	if err != nil {
 		return fmt.Errorf("enriching VM %s with facts: %w", vm.GetId(), err)
 	}
+
+	// Update VM with scan results
+	vm.Scan = scan
+	vm.LastUpdated = scan.GetScanTime()
 
 	log.Infof("Successfully enriched VM %s with vulnerabilities from %d packages and facts", vm.GetId(), len(packages))
 	return nil

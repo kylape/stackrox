@@ -9,6 +9,7 @@ import (
 	"github.com/stackrox/rox/central/sensor/service/pipeline"
 	"github.com/stackrox/rox/central/sensor/service/pipeline/reconciliation"
 	vmDatastore "github.com/stackrox/rox/central/virtualmachine/datastore"
+	vmEnricher "github.com/stackrox/rox/central/virtualmachine/enricher"
 	"github.com/stackrox/rox/generated/internalapi/central"
 	"github.com/stackrox/rox/pkg/centralsensor"
 	"github.com/stackrox/rox/pkg/logging"
@@ -23,18 +24,20 @@ var (
 
 // GetPipeline returns an instantiation of this particular pipeline
 func GetPipeline() pipeline.Fragment {
-	return newPipeline(vmDatastore.Singleton())
+	return newPipeline(vmDatastore.Singleton(), vmEnricher.Singleton())
 }
 
 // newPipeline returns a new instance of Pipeline.
-func newPipeline(vms vmDatastore.DataStore) pipeline.Fragment {
+func newPipeline(vms vmDatastore.DataStore, enricher vmEnricher.VMVulnerabilityEnricher) pipeline.Fragment {
 	return &pipelineImpl{
 		vmDatastore: vms,
+		enricher:    enricher,
 	}
 }
 
 type pipelineImpl struct {
 	vmDatastore vmDatastore.DataStore
+	enricher    vmEnricher.VMVulnerabilityEnricher
 }
 
 func (p *pipelineImpl) OnFinish(_ string) {
@@ -71,6 +74,13 @@ func (p *pipelineImpl) Run(ctx context.Context, _ string, msg *central.MsgFromSe
 
 	log.Debugf("Received virtual machine message: %s", vm.Name)
 	vm = vm.CloneVT()
+
+	// Enrich VM with vulnerability data if enricher is available
+	if p.enricher != nil {
+		if err := p.enricher.EnrichVMWithVulnerabilities(ctx, vm); err != nil {
+			log.Warnf("Failed to enrich VM %s with vulnerability data: %v", vm.Name, err)
+		}
+	}
 
 	if err := p.vmDatastore.UpsertVirtualMachine(ctx, vm); err != nil {
 		return errors.Wrap(err, "failed to upsert virtual machine to datstore")

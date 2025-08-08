@@ -66,7 +66,7 @@ func TestNew(t *testing.T) {
 
 		impl, ok := enricher.(*enricherImpl)
 		require.True(t, ok)
-		assert.NotNil(t, impl.vmEnricher)
+		assert.NotNil(t, impl.vmMatcher)
 	})
 
 	t.Run("nil scanner client panics", func(t *testing.T) {
