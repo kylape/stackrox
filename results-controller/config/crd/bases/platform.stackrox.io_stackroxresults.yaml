@@ -1,0 +1,233 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: stackroxresults.platform.stackrox.io
+spec:
+  group: platform.stackrox.io
+  names:
+    kind: StackRoxResults
+    listKind: StackRoxResultsList
+    plural: stackroxresults
+    singular: stackroxresults
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.totalVulnerabilities
+      name: Vulnerabilities
+      type: integer
+    - jsonPath: .status.totalPolicyViolations
+      name: Violations
+      type: integer
+    - jsonPath: .status.syncStatus
+      name: Status
+      type: string
+    - jsonPath: .status.lastSyncTime
+      name: Last Sync
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          StackRoxResults is the Schema for the stackroxresults API
+          This resource provides a read-only view of StackRox security results for a specific namespace,
+          enabling Kubernetes RBAC-based access to vulnerability and policy violation data.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              StackRoxResultsSpec defines the desired state of StackRoxResults
+              Note: This is intentionally empty as StackRoxResults is status-only
+            type: object
+          status:
+            description: StackRoxResultsStatus defines the observed state of StackRoxResults
+            properties:
+              lastSyncTime:
+                description: When the results were last synchronized from Central
+                format: date-time
+                type: string
+              policyViolationSummary:
+                additionalProperties:
+                  format: int32
+                  type: integer
+                description: Summary counts by severity for policy violations
+                type: object
+              policyViolations:
+                description: Policy violations (alerts) within this namespace
+                items:
+                  description: PolicyViolationInfo represents a policy violation (alert)
+                    within the namespace
+                  properties:
+                    alertId:
+                      description: Unique identifier for the alert
+                      type: string
+                    categories:
+                      description: Categories this policy belongs to
+                      items:
+                        type: string
+                      type: array
+                    description:
+                      description: Description of what was violated
+                      type: string
+                    firstOccurred:
+                      description: When this violation was first detected
+                      format: date-time
+                      type: string
+                    lastOccurred:
+                      description: When this violation was last seen
+                      format: date-time
+                      type: string
+                    policyName:
+                      description: Name of the policy that was violated
+                      type: string
+                    remediation:
+                      description: Remediation advice for fixing the violation
+                      type: string
+                    resourceName:
+                      description: Resource that triggered the violation (deployment,
+                        pod, etc.)
+                      type: string
+                    resourceType:
+                      description: Type of resource that triggered the violation
+                      type: string
+                    severity:
+                      description: Severity of the policy violation (Low, Medium,
+                        High, Critical)
+                      enum:
+                      - Low
+                      - Medium
+                      - High
+                      - Critical
+                      type: string
+                    state:
+                      description: Current state of the violation (Active, Resolved,
+                        Snoozed)
+                      enum:
+                      - Active
+                      - Resolved
+                      - Snoozed
+                      type: string
+                  required:
+                  - alertId
+                  - policyName
+                  - severity
+                  type: object
+                maxItems: 50
+                type: array
+              syncMessage:
+                description: Message providing additional details about the sync status
+                type: string
+              syncStatus:
+                description: Status of the last synchronization attempt
+                enum:
+                - Ready
+                - Error
+                - Syncing
+                - Unknown
+                type: string
+              totalPolicyViolations:
+                description: Number of total policy violations found (may exceed the
+                  displayed limit)
+                format: int32
+                type: integer
+              totalVulnerabilities:
+                description: Number of total vulnerabilities found (may exceed the
+                  displayed limit)
+                format: int32
+                type: integer
+              vulnerabilities:
+                description: Vulnerabilities found in images within this namespace
+                items:
+                  description: VulnerabilityInfo represents a vulnerability found
+                    in images within the namespace
+                  properties:
+                    affectedDeployments:
+                      description: List of deployments in this namespace affected
+                        by this vulnerability
+                      items:
+                        type: string
+                      maxItems: 50
+                      type: array
+                    affectedImages:
+                      description: List of images in this namespace affected by this
+                        vulnerability
+                      items:
+                        type: string
+                      maxItems: 50
+                      type: array
+                    cve:
+                      description: CVE identifier for the vulnerability
+                      type: string
+                    cvss:
+                      description: CVSS score for the vulnerability
+                      maximum: 10
+                      minimum: 0
+                      type: number
+                    discoveredAt:
+                      description: When this vulnerability was first discovered in
+                        the system
+                      format: date-time
+                      type: string
+                    fixable:
+                      description: Whether this vulnerability is fixable
+                      type: boolean
+                    fixedByVersion:
+                      description: Version that fixes this vulnerability, if available
+                      type: string
+                    lastScanned:
+                      description: When this vulnerability was last scanned
+                      format: date-time
+                      type: string
+                    severity:
+                      description: Severity of the vulnerability (Low, Medium, High,
+                        Critical)
+                      enum:
+                      - Low
+                      - Medium
+                      - High
+                      - Critical
+                      type: string
+                    summary:
+                      description: Summary description of the vulnerability
+                      type: string
+                  required:
+                  - cve
+                  - cvss
+                  - fixable
+                  - severity
+                  type: object
+                maxItems: 100
+                type: array
+              vulnerabilitySummary:
+                additionalProperties:
+                  format: int32
+                  type: integer
+                description: Summary counts by severity for vulnerabilities
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

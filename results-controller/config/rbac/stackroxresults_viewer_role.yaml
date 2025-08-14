@@ -1,0 +1,23 @@
+# permissions for end users to view stackroxresults.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: results-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: stackroxresults-viewer-role
+rules:
+- apiGroups:
+  - platform.stackrox.io
+  resources:
+  - stackroxresults
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - platform.stackrox.io
+  resources:
+  - stackroxresults/status
+  verbs:
+  - get
