@@ -2,6 +2,18 @@
 
 The StackRox Results Controller exposes StackRox security results (vulnerabilities and policy violations) as Kubernetes Custom Resources, enabling Kubernetes RBAC-based access to security data.
 
+## This is what the human has written
+
+Instructions to get results controller working:
+
+* Download CA cert: kubectl get -n stackrox secret tls-cert-collector -o json | jq -r '.data["ca.pem"]' | base64 -d > certs/ca.pem
+* Build: go build -o bin/results-controller ./results-controller
+* Install CRD: cd results-controller; make install
+* Update m2m config for kube service account by adding admin role to service account
+* Run: ROX_MTLS_CA_FILE=certs/ca.pem ROX_NAMESPACE=stackrox LOGLEVEL=debug ROX_CLUSTER_NAME=remote bin/results-controller
+
+This assumes you run it from a container in the same cluster as central.
+
 ## Overview
 
 This controller creates namespace-scoped `StackRoxResults` Custom Resources that contain:

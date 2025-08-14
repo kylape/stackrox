@@ -28,7 +28,7 @@ type VulnerabilityInfo struct {
 
 	// Severity of the vulnerability (Low, Medium, High, Critical)
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=Low;Medium;High;Critical
+	// +kubebuilder:validation:Enum=Low;Medium;High;Critical;Unknown
 	Severity string `json:"severity"`
 
 	// CVSS score for the vulnerability

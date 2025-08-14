@@ -139,6 +139,8 @@ func (r *StackRoxResultsReconciler) backgroundSyncLoop(ctx context.Context) {
 func (r *StackRoxResultsReconciler) performFullSync(ctx context.Context) {
 	controllerLog.Info("Starting full sync from Central")
 
+	time.Sleep(5 * time.Second)
+
 	// List all namespaces
 	var namespaces corev1.NamespaceList
 	if err := r.List(ctx, &namespaces); err != nil {
@@ -248,7 +250,6 @@ func (r *StackRoxResultsReconciler) isSystemNamespace(namespace string) bool {
 	systemPrefixes := []string{
 		"kube-",
 		"openshift-",
-		"stackrox",
 	}
 
 	for _, prefix := range systemPrefixes {
@@ -257,9 +258,7 @@ func (r *StackRoxResultsReconciler) isSystemNamespace(namespace string) bool {
 		}
 	}
 
-	systemNamespaces := []string{
-		"default",
-	}
+	systemNamespaces := []string{}
 
 	for _, sysNs := range systemNamespaces {
 		if namespace == sysNs {

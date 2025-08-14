@@ -207,6 +207,7 @@ spec:
                       - Medium
                       - High
                       - Critical
+                      - Unknown
                       type: string
                     summary:
                       description: Summary description of the vulnerability
