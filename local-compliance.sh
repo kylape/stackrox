@@ -1,0 +1,1 @@
+ROX_NODE_SCANNING_V4_ENABLED="true" ROX_NODE_SCANNING_MAX_INITIAL_WAIT=1s ROX_NODE_SCANNING_INTERVAL=30s ROX_ADVERTISED_ENDPOINT=sensor.stackrox.svc:443 ROX_MTLS_CA_FILE=$PWD/certs/ca.pem ROX_MTLS_CERT_FILE=$PWD/certs/cert.pem ROX_MTLS_KEY_FILE=$PWD/certs/key.pem go run tools/local-compliance/*.go

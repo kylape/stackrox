@@ -1,0 +1,36 @@
+&{
+    kind-control-plane
+    2d0d91c1-9e93-492d-af75-01d84cb8bffd
+    hash_id:"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    success:true
+    contents:{
+        packages:{
+            id:"0"
+            name:"openssh-clients"
+            version:"8.7p1-38.el9"
+            kind:"binary"
+            source:{
+                name:"openssh"
+                version:"8.7p1-38.el9"
+                kind:"source"
+                cpe:"cpe:2.3:*:*:*:*:*:*:*:*:*:*:*"
+            }
+            package_db:"sqlite:usr/share/rpm"
+            repository_hint:"hash:sha256:f52ca767328e6919ec11a1da654e92743587bd3c008f0731f8c4de3af19c1830|key:199e2f91fd431d51"
+            arch:"x86_64"
+            cpe:"cpe:2.3:*:*:*:*:*:*:*:*:*:*:*"
+        }
+        repositories:{
+            id:"0"
+            name:"cpe:/o:redhat:enterprise_linux:9::fastdatapath"
+            key:"rhel-cpe-repository"
+            cpe:"cpe:2.3:o:redhat:enterprise_linux:9:*:fastdatapath:*:*:*:*:*"
+        }
+        repositories:{
+            id:"1"
+            name:"cpe:/a:redhat:openshift:4.16::el9"
+            key:"rhel-cpe-repository"
+            cpe:"cpe:2.3:a:redhat:openshift:4.16:*:el9:*:*:*:*:*"
+        }
+    }
+}
