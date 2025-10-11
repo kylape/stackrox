@@ -9,6 +9,9 @@ var (
 	// StoreEventHashes stores the hashes of successfully processed objects we receive from Sensor into the database
 	StoreEventHashes = registerFeature("Store Event Hashes", "ROX_STORE_EVENT_HASHES", enabled, unchangeableInProd)
 
+	// VulnerabilityProxy enables the vulnerability proxy endpoints on Sensor
+	VulnerabilityProxy = registerFeature("Enable vulnerability proxy API on Sensor", "ROX_VULNERABILITY_PROXY")
+
 	// ComplianceEnhancements enables APIs and UI pages for Compliance 2.0
 	ComplianceEnhancements = registerFeature("Compliance enhancements", "ROX_COMPLIANCE_ENHANCEMENTS", enabled)
 
