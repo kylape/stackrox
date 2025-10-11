@@ -38,6 +38,8 @@ import (
 	"github.com/stackrox/rox/sensor/common/internalmessage"
 	"github.com/stackrox/rox/sensor/common/scannerclient"
 	"github.com/stackrox/rox/sensor/common/scannerdefinitions"
+	"github.com/stackrox/rox/sensor/common/vulnerabilityproxy"
+	"k8s.io/client-go/kubernetes"
 )
 
 const (
@@ -71,6 +73,8 @@ type Sensor struct {
 	webhookServer   pkgGRPC.API
 	profilingServer *http.Server
 
+	k8sClient kubernetes.Interface
+
 	pubSub *internalmessage.MessageSubscriber
 
 	currentState    common.SensorComponentEvent
@@ -100,6 +104,7 @@ func NewSensor(
 	centralConnectionFactory centralclient.CentralConnectionFactory,
 	pubSub *internalmessage.MessageSubscriber,
 	certLoader centralclient.CertLoader,
+	k8sClient kubernetes.Interface,
 	components ...common.SensorComponent,
 ) *Sensor {
 	return &Sensor{
@@ -111,6 +116,7 @@ func NewSensor(
 		configHandler: configHandler,
 		detector:      detector,
 		imageService:  imageService,
+		k8sClient:     k8sClient,
 		components:    append(components, detector, configHandler), // Explicitly add the config handler
 
 		centralConnectionFactory: centralConnectionFactory,
@@ -234,6 +240,30 @@ func (s *Sensor) Start() {
 		customRoutes = append(customRoutes, *route)
 
 		s.AddNotifiable(scannerclient.ResetNotifiable())
+	}
+
+	// Enable vulnerability proxy endpoints if feature is enabled
+	if features.VulnerabilityProxy.Enabled() {
+		requestChan := make(chan *vulnerabilityproxy.QueryRequest, 100)
+		responseChan := make(chan *vulnerabilityproxy.QueryResponse, 100)
+
+		vulnProxyComponent := vulnerabilityproxy.NewComponent(requestChan, responseChan)
+		s.components = append(s.components, vulnProxyComponent)
+
+		vulnProxyHandler := vulnerabilityproxy.NewHandler(
+			s.k8sClient,
+			&centralReachable,
+			requestChan,
+			responseChan,
+		)
+
+		vulnProxyRoute := routes.CustomRoute{
+			Route:         "/k8s/",
+			Authorizer:    allow.Anonymous(), // Auth handled in handler via TokenReview
+			ServerHandler: vulnProxyHandler,
+			Compression:   true,
+		}
+		customRoutes = append(customRoutes, vulnProxyRoute)
 	}
 
 	// Create grpc server with custom routes

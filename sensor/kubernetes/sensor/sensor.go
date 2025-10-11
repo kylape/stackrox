@@ -208,6 +208,7 @@ func CreateSensor(cfg *CreateOptions) (*sensor.Sensor, error) {
 		cfg.centralConnFactory,
 		pubSub,
 		cfg.certLoader,
+		cfg.k8sClient.Kubernetes(),
 		components...,
 	)
 
