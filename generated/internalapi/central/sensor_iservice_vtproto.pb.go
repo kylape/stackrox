@@ -187,6 +187,15 @@ func (m *MsgFromSensor_IssueSecuredClusterCertsRequest) CloneVT() isMsgFromSenso
 	return r
 }
 
+func (m *MsgFromSensor_VulnerabilityQueryRequest) CloneVT() isMsgFromSensor_Msg {
+	if m == nil {
+		return (*MsgFromSensor_VulnerabilityQueryRequest)(nil)
+	}
+	r := new(MsgFromSensor_VulnerabilityQueryRequest)
+	r.VulnerabilityQueryRequest = m.VulnerabilityQueryRequest.CloneVT()
+	return r
+}
+
 func (m *ReprocessDeployments) CloneVT() *ReprocessDeployments {
 	if m == nil {
 		return (*ReprocessDeployments)(nil)
@@ -468,6 +477,15 @@ func (m *MsgToSensor_IssueSecuredClusterCertsResponse) CloneVT() isMsgToSensor_M
 	}
 	r := new(MsgToSensor_IssueSecuredClusterCertsResponse)
 	r.IssueSecuredClusterCertsResponse = m.IssueSecuredClusterCertsResponse.CloneVT()
+	return r
+}
+
+func (m *MsgToSensor_VulnerabilityQueryResponse) CloneVT() isMsgToSensor_Msg {
+	if m == nil {
+		return (*MsgToSensor_VulnerabilityQueryResponse)(nil)
+	}
+	r := new(MsgToSensor_VulnerabilityQueryResponse)
+	r.VulnerabilityQueryResponse = m.VulnerabilityQueryResponse.CloneVT()
 	return r
 }
 
@@ -1065,6 +1083,31 @@ func (this *MsgFromSensor_IssueSecuredClusterCertsRequest) EqualVT(thatIface isM
 		}
 		if q == nil {
 			q = &IssueSecuredClusterCertsRequest{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *MsgFromSensor_VulnerabilityQueryRequest) EqualVT(thatIface isMsgFromSensor_Msg) bool {
+	that, ok := thatIface.(*MsgFromSensor_VulnerabilityQueryRequest)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.VulnerabilityQueryRequest, that.VulnerabilityQueryRequest; p != q {
+		if p == nil {
+			p = &VulnerabilityQueryRequest{}
+		}
+		if q == nil {
+			q = &VulnerabilityQueryRequest{}
 		}
 		if !p.EqualVT(q) {
 			return false
@@ -1794,6 +1837,31 @@ func (this *MsgToSensor_IssueSecuredClusterCertsResponse) EqualVT(thatIface isMs
 	return true
 }
 
+func (this *MsgToSensor_VulnerabilityQueryResponse) EqualVT(thatIface isMsgToSensor_Msg) bool {
+	that, ok := thatIface.(*MsgToSensor_VulnerabilityQueryResponse)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.VulnerabilityQueryResponse, that.VulnerabilityQueryResponse; p != q {
+		if p == nil {
+			p = &VulnerabilityQueryResponse{}
+		}
+		if q == nil {
+			q = &VulnerabilityQueryResponse{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
 func (this *DeduperState) EqualVT(that *DeduperState) bool {
 	if this == that {
 		return true
@@ -2462,6 +2530,33 @@ func (m *MsgFromSensor_IssueSecuredClusterCertsRequest) MarshalToSizedBufferVT(d
 		dAtA[i] = 0x1
 		i--
 		dAtA[i] = 0x9a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *MsgFromSensor_VulnerabilityQueryRequest) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *MsgFromSensor_VulnerabilityQueryRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.VulnerabilityQueryRequest != nil {
+		size, err := m.VulnerabilityQueryRequest.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xa2
+	} else {
+		i = protohelpers.EncodeVarint(dAtA, i, 0)
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xa2
 	}
 	return len(dAtA) - i, nil
 }
@@ -3225,6 +3320,33 @@ func (m *MsgToSensor_IssueSecuredClusterCertsResponse) MarshalToSizedBufferVT(dA
 	}
 	return len(dAtA) - i, nil
 }
+func (m *MsgToSensor_VulnerabilityQueryResponse) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *MsgToSensor_VulnerabilityQueryResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.VulnerabilityQueryResponse != nil {
+		size, err := m.VulnerabilityQueryResponse.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xea
+	} else {
+		i = protohelpers.EncodeVarint(dAtA, i, 0)
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xea
+	}
+	return len(dAtA) - i, nil
+}
 func (m *DeduperState) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -3858,6 +3980,20 @@ func (m *MsgFromSensor_IssueSecuredClusterCertsRequest) SizeVT() (n int) {
 	}
 	return n
 }
+func (m *MsgFromSensor_VulnerabilityQueryRequest) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.VulnerabilityQueryRequest != nil {
+		l = m.VulnerabilityQueryRequest.SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	} else {
+		n += 3
+	}
+	return n
+}
 func (m *ReprocessDeployments) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -4259,6 +4395,20 @@ func (m *MsgToSensor_IssueSecuredClusterCertsResponse) SizeVT() (n int) {
 	_ = l
 	if m.IssueSecuredClusterCertsResponse != nil {
 		l = m.IssueSecuredClusterCertsResponse.SizeVT()
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	} else {
+		n += 3
+	}
+	return n
+}
+func (m *MsgToSensor_VulnerabilityQueryResponse) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.VulnerabilityQueryResponse != nil {
+		l = m.VulnerabilityQueryResponse.SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	} else {
 		n += 3
@@ -5187,6 +5337,47 @@ func (m *MsgFromSensor) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 				m.Msg = &MsgFromSensor_IssueSecuredClusterCertsRequest{IssueSecuredClusterCertsRequest: v}
+			}
+			iNdEx = postIndex
+		case 20:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field VulnerabilityQueryRequest", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.Msg.(*MsgFromSensor_VulnerabilityQueryRequest); ok {
+				if err := oneof.VulnerabilityQueryRequest.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &VulnerabilityQueryRequest{}
+				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.Msg = &MsgFromSensor_VulnerabilityQueryRequest{VulnerabilityQueryRequest: v}
 			}
 			iNdEx = postIndex
 		default:
@@ -6412,6 +6603,47 @@ func (m *MsgToSensor) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 				m.Msg = &MsgToSensor_IssueSecuredClusterCertsResponse{IssueSecuredClusterCertsResponse: v}
+			}
+			iNdEx = postIndex
+		case 29:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field VulnerabilityQueryResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.Msg.(*MsgToSensor_VulnerabilityQueryResponse); ok {
+				if err := oneof.VulnerabilityQueryResponse.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &VulnerabilityQueryResponse{}
+				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.Msg = &MsgToSensor_VulnerabilityQueryResponse{VulnerabilityQueryResponse: v}
 			}
 			iNdEx = postIndex
 		default:
@@ -8226,6 +8458,47 @@ func (m *MsgFromSensor) UnmarshalVTUnsafe(dAtA []byte) error {
 				m.Msg = &MsgFromSensor_IssueSecuredClusterCertsRequest{IssueSecuredClusterCertsRequest: v}
 			}
 			iNdEx = postIndex
+		case 20:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field VulnerabilityQueryRequest", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.Msg.(*MsgFromSensor_VulnerabilityQueryRequest); ok {
+				if err := oneof.VulnerabilityQueryRequest.UnmarshalVTUnsafe(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &VulnerabilityQueryRequest{}
+				if err := v.UnmarshalVTUnsafe(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.Msg = &MsgFromSensor_VulnerabilityQueryRequest{VulnerabilityQueryRequest: v}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -9449,6 +9722,47 @@ func (m *MsgToSensor) UnmarshalVTUnsafe(dAtA []byte) error {
 					return err
 				}
 				m.Msg = &MsgToSensor_IssueSecuredClusterCertsResponse{IssueSecuredClusterCertsResponse: v}
+			}
+			iNdEx = postIndex
+		case 29:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field VulnerabilityQueryResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.Msg.(*MsgToSensor_VulnerabilityQueryResponse); ok {
+				if err := oneof.VulnerabilityQueryResponse.UnmarshalVTUnsafe(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &VulnerabilityQueryResponse{}
+				if err := v.UnmarshalVTUnsafe(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.Msg = &MsgToSensor_VulnerabilityQueryResponse{VulnerabilityQueryResponse: v}
 			}
 			iNdEx = postIndex
 		default:
