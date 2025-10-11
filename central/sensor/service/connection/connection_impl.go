@@ -8,6 +8,8 @@ import (
 	"github.com/pkg/errors"
 	compScanSetting "github.com/stackrox/rox/central/complianceoperator/v2/scanconfigurations/datastore"
 	delegatedRegistryConfigConvert "github.com/stackrox/rox/central/delegatedregistryconfig/convert"
+	deploymentDatastore "github.com/stackrox/rox/central/deployment/datastore"
+	imageDatastore "github.com/stackrox/rox/central/image/datastore"
 	"github.com/stackrox/rox/central/delegatedregistryconfig/util/imageintegration"
 	hashManager "github.com/stackrox/rox/central/hash/manager"
 	"github.com/stackrox/rox/central/metrics"
@@ -60,7 +62,8 @@ type sensorConnection struct {
 	networkEntitiesCtrl networkentities.Controller
 	telemetryCtrl       telemetry.Controller
 
-	sensorEventHandler *sensorEventHandler
+	sensorEventHandler      *sensorEventHandler
+	vulnerabilityQueryHandler *vulnerabilityQueryHandler
 
 	queues      map[string]*dedupingqueue.DedupingQueue[string]
 	queuesMutex sync.Mutex
@@ -132,6 +135,10 @@ func newConnection(ctx context.Context,
 	conn.networkPoliciesCtrl = networkpolicies.NewController(conn, &conn.stopSig)
 	conn.networkEntitiesCtrl = networkentities.NewController(cluster.GetId(), networkEntityMgr, graph.Singleton(), conn, &conn.stopSig)
 	conn.telemetryCtrl = telemetry.NewController(conn.capabilities, conn, &conn.stopSig)
+	conn.vulnerabilityQueryHandler = newVulnerabilityQueryHandler(
+		deploymentDatastore.Singleton(),
+		imageDatastore.Singleton(),
+	)
 
 	return conn
 }
@@ -301,6 +308,8 @@ func (c *sensorConnection) handleMessage(ctx context.Context, msg *central.MsgFr
 		return c.processIssueSecuredClusterCertsRequest(ctx, m.IssueSecuredClusterCertsRequest)
 	case *central.MsgFromSensor_ComplianceResponse:
 		return c.processComplianceResponse(ctx, msg.GetComplianceResponse())
+	case *central.MsgFromSensor_VulnerabilityQueryRequest:
+		return c.processVulnerabilityQueryRequest(ctx, m.VulnerabilityQueryRequest)
 	case *central.MsgFromSensor_Event:
 		// Special case the reprocess deployment because its fields are already set
 		if msg.GetEvent().GetReprocessDeployment() != nil {
@@ -344,6 +353,18 @@ func (c *sensorConnection) processComplianceResponse(ctx context.Context, msg *c
 		log.Infof("Unimplemented compliance response  %T", m)
 	}
 	return errors.Errorf("Unimplemented compliance response  %T", msg.GetResponse())
+}
+
+func (c *sensorConnection) processVulnerabilityQueryRequest(ctx context.Context, request *central.VulnerabilityQueryRequest) error {
+	// Process the vulnerability query request
+	response := c.vulnerabilityQueryHandler.handleRequest(ctx, request)
+
+	// Send the response back to Sensor
+	return c.InjectMessage(ctx, &central.MsgToSensor{
+		Msg: &central.MsgToSensor_VulnerabilityQueryResponse{
+			VulnerabilityQueryResponse: response,
+		},
+	})
 }
 
 func (c *sensorConnection) processIssueLocalScannerCertsRequest(ctx context.Context, request *central.IssueLocalScannerCertsRequest) error {
