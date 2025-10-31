@@ -10,29 +10,27 @@ FROM quay.io/rhacs-eng/main:${BASE_TAG}
 # Switch to root to copy binaries
 USER root
 
-# Copy locally-built binaries, overwriting the ones from the base image
-# Binaries are expected in the build context root
-COPY central            /stackrox/central
-COPY migrator           /stackrox/bin/migrator
-COPY compliance         /stackrox/bin/compliance
-COPY kubernetes         /stackrox/bin/kubernetes-sensor
-COPY upgrader           /stackrox/bin/sensor-upgrader
-COPY admission-control  /stackrox/bin/admission-control
-COPY config-controller  /stackrox/bin/config-controller
-COPY init-tls-certs     /stackrox/bin/init-tls-certs
+# Copy all locally-built binaries at once
+COPY * /tmp/binaries/
 
-# Optional: Copy roxctl if built locally
-# COPY roxctl /assets/downloads/cli/roxctl-linux-amd64
-
-# Ensure correct ownership
-RUN chown 4000:4000 /stackrox/central \
-    /stackrox/bin/migrator \
-    /stackrox/bin/compliance \
-    /stackrox/bin/kubernetes-sensor \
-    /stackrox/bin/sensor-upgrader \
-    /stackrox/bin/admission-control \
-    /stackrox/bin/config-controller \
-    /stackrox/bin/init-tls-certs
+# Move binaries to their correct locations and set ownership
+RUN mv /tmp/binaries/central /stackrox/central && \
+    mv /tmp/binaries/migrator /stackrox/bin/migrator && \
+    mv /tmp/binaries/compliance /stackrox/bin/compliance && \
+    mv /tmp/binaries/kubernetes /stackrox/bin/kubernetes-sensor && \
+    mv /tmp/binaries/upgrader /stackrox/bin/sensor-upgrader && \
+    mv /tmp/binaries/admission-control /stackrox/bin/admission-control && \
+    mv /tmp/binaries/config-controller /stackrox/bin/config-controller && \
+    mv /tmp/binaries/init-tls-certs /stackrox/bin/init-tls-certs && \
+    chown 4000:4000 /stackrox/central \
+        /stackrox/bin/migrator \
+        /stackrox/bin/compliance \
+        /stackrox/bin/kubernetes-sensor \
+        /stackrox/bin/sensor-upgrader \
+        /stackrox/bin/admission-control \
+        /stackrox/bin/config-controller \
+        /stackrox/bin/init-tls-certs && \
+    rm -rf /tmp/binaries
 
 # Switch back to non-root user
 USER 4000:4000
