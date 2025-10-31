@@ -1,0 +1,44 @@
+# Fast inner loop Dockerfile - uses pre-built image from quay.io/rhacs-eng
+# and only copies in locally-built binaries
+#
+# This Dockerfile expects binaries to be in the build context (passed via -f flag)
+# The Makefile copies bin/linux_${GOARCH}/* to .fastbuild/ before running docker build
+
+ARG BASE_TAG=latest
+FROM quay.io/rhacs-eng/main:${BASE_TAG}
+
+# Switch to root to copy binaries
+USER root
+
+# Copy locally-built binaries, overwriting the ones from the base image
+# Binaries are expected in the build context root
+COPY central            /stackrox/central
+COPY migrator           /stackrox/bin/migrator
+COPY compliance         /stackrox/bin/compliance
+COPY kubernetes         /stackrox/bin/kubernetes-sensor
+COPY upgrader           /stackrox/bin/sensor-upgrader
+COPY admission-control  /stackrox/bin/admission-control
+COPY config-controller  /stackrox/bin/config-controller
+COPY init-tls-certs     /stackrox/bin/init-tls-certs
+
+# Optional: Copy roxctl if built locally
+# COPY roxctl /assets/downloads/cli/roxctl-linux-amd64
+
+# Ensure correct ownership
+RUN chown 4000:4000 /stackrox/central \
+    /stackrox/bin/migrator \
+    /stackrox/bin/compliance \
+    /stackrox/bin/kubernetes-sensor \
+    /stackrox/bin/sensor-upgrader \
+    /stackrox/bin/admission-control \
+    /stackrox/bin/config-controller \
+    /stackrox/bin/init-tls-certs
+
+# Switch back to non-root user
+USER 4000:4000
+
+EXPOSE 8443
+
+ENTRYPOINT ["/stackrox/roxctl"]
+
+HEALTHCHECK CMD curl --insecure --fail https://127.0.0.1:8443/v1/ping
