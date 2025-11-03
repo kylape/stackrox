@@ -8,10 +8,37 @@ The fast build workflow significantly speeds up the inner loop by:
 
 1. Using a pre-built base image from `quay.io/rhacs-eng/main` instead of building from scratch
 2. Only building and copying the Go binaries you're actively developing
-3. Skipping UI builds, RPM downloads, and other time-consuming steps
+3. Building static binaries with `CGO_ENABLED=0` to avoid GLIBC version compatibility issues
+4. Skipping UI builds, RPM downloads, and other time-consuming steps
 
 **Traditional build time**: 15-30 minutes
 **Fast build time**: 2-5 minutes
+
+## Key Technical Details
+
+### Static Binary Compilation
+
+All binaries are built with `CGO_ENABLED=0` to create static binaries without GLIBC dependencies. This solves compatibility issues between:
+
+* **Base image**: GLIBC 2.28 (from 2018)
+* **Development container**: GLIBC 2.42 (2025)
+
+Static binaries are portable across different GLIBC versions and run reliably in the older base image.
+
+### Dockerfile Design
+
+The `Dockerfile.fastbuild` uses a two-stage copy approach for efficiency:
+
+1. **Copy central binary** directly to `/stackrox/central`
+2. **Copy service binaries** to a temporary location, then rename and move to `/stackrox/bin/`
+
+This design:
+* Minimizes the number of COPY layers
+* Ensures correct binary naming (e.g., `kubernetes` → `kubernetes-sensor`)
+* Sets proper ownership (UID 4000:4000) for security
+* Cleans up temporary files to reduce image size
+
+The Dockerfile uses `bin/linux_${GOARCH}/` as the build context instead of the repository root, which works around the `.containerignore` file that filters out the `/bin/` directory.
 
 ## Quick Start
 
@@ -52,14 +79,14 @@ make fast-inner-loop
 
 ### Using a Different Base Image Tag
 
-By default, the workflow uses `quay.io/rhacs-eng/main:4.6.x-latest`. You can customize this:
+By default, the workflow uses `quay.io/rhacs-eng/main:latest`. You can customize this:
 
 ```bash
 # Using environment variable
-BASE_TAG=4.5.x-latest /root/workspace/sessions/image-build/build.sh
+BASE_TAG=4.6.x-latest /root/workspace/sessions/image-build/build.sh
 
 # Using make parameter
-make fast-inner-loop BASE_TAG=4.5.x-latest
+make fast-inner-loop BASE_TAG=4.6.x-latest
 ```
 
 ### Using a Different Image Tag
@@ -115,10 +142,11 @@ make fast-binaries
 ```
 
 This runs `go-build.sh` to compile the Go binaries with the correct flags:
+* Builds with `CGO_ENABLED=0` for static binaries
 * Builds with proper ldflags from `status.sh`
 * Supports `DEBUG_BUILD=yes` for debugging
 * Uses `GOTAGS` for conditional compilation
-* Outputs to `bin/linux_amd64/` directory
+* Outputs to `bin/linux_${GOARCH}/` directory (architecture-aware)
 
 ### Step 2: Create Docker Image
 
@@ -128,9 +156,13 @@ make fast-image
 
 This uses `Dockerfile.fastbuild` to:
 1. Pull the base image from `quay.io/rhacs-eng/main:${BASE_TAG}`
-2. Copy locally-built binaries over the ones in the base image
-3. Set correct ownership (UID 4000)
+2. Copy locally-built static binaries over the ones in the base image:
+   * `central` → `/stackrox/central`
+   * Other binaries → `/stackrox/bin/` (migrator, compliance, kubernetes-sensor, etc.)
+3. Set correct ownership (UID 4000:4000)
 4. Tag as `stackrox/main:${IMAGE_TAG}`
+
+The Dockerfile uses `bin/linux_${GOARCH}/` as the build context to work around `.containerignore` filtering.
 
 ### Step 3: Load into Kind
 
@@ -158,7 +190,10 @@ To build with Go's race detector:
 RACE=true make fast-binaries
 ```
 
-Note: Race detection requires `CGO_ENABLED=1` and will slow down the build.
+**Note**: Race detection requires `CGO_ENABLED=1`, which conflicts with the static binary approach. Using race detection will:
+* Enable dynamic linking (losing GLIBC compatibility benefits)
+* Slow down the build significantly
+* Require matching GLIBC versions between dev environment and base image
 
 ### Check Build Flags
 
@@ -178,6 +213,18 @@ docker login quay.io
 
 Ensure you run `make fast-binaries` or `make fast-image` before trying to build the Docker image directly. The Makefile dependencies handle this automatically.
 
+### GLIBC version errors
+
+If you see errors like `GLIBC_X.XX not found`, it means CGO is enabled. Ensure:
+
+```bash
+# Check that CGO is disabled in the Makefile
+grep "CGO_ENABLED=0" Makefile
+
+# Verify binaries are static
+ldd bin/linux_*/central  # Should output "not a dynamic executable"
+```
+
 ### Kind load fails
 
 Check that your kind cluster is running:
@@ -190,15 +237,11 @@ Ensure the cluster name matches (default: `stackrox-image-build`).
 
 ### Deployment fails with image pull errors
 
-When deploying with roxie, ensure you set the image pull policy to `Never`:
+When deploying with roxctl-generated manifests, ensure:
 
-```bash
-./bin/roxie deploy both \
-    --main-image "stackrox/main:local-dev" \
-    --image-pull-policy Never
-```
-
-The helper script `deploy.sh` does this automatically.
+1. Image is loaded into kind: `docker images | grep stackrox/main`
+2. Image name in manifests matches exactly (no `docker.io/` prefix)
+3. `imagePullPolicy` is set to `Never` or `IfNotPresent`
 
 ## Complete Workflow Example
 
@@ -218,18 +261,37 @@ kubectl logs -n stackrox deploy/central -f
 # 5. Iterate - repeat steps 1-4
 ```
 
-## Integration with roxie
+## Deployment Options
 
-The deploy script uses roxie with these key parameters:
+### Option 1: Using roxctl (Recommended)
+
+Generate and deploy using roxctl-generated manifests:
+
+```bash
+# Generate manifests
+roxctl central generate k8s pvc --output-dir /tmp/central-bundle
+
+# Create registry pull secret
+kubectl create secret generic stackrox \
+  --from-file=.dockerconfigjson=/root/.docker/config.json \
+  --type=kubernetes.io/dockerconfigjson
+
+# Update image references in manifests (if needed)
+find /tmp/central-bundle -name "*.yaml" -exec sed -i 's|docker.io/localhost/||g' {} \;
+
+# Deploy
+./central/scripts/setup.sh
+kubectl create -R -f central/
+```
+
+### Option 2: Using roxie
+
+The deploy script can use roxie with these key parameters:
 
 * `--main-image stackrox/main:local-dev` - Use the locally-built image
 * `--image-pull-policy Never` - Don't pull from registry, use local image
 
-Roxie handles:
-* Creating the stackrox namespace
-* Deploying central
-* Deploying secured-cluster components
-* Configuring networking and RBAC
+**Note**: The operator deployment may have compatibility issues. Use roxctl (Option 1) for more reliable deployments.
 
 ## Performance Comparison
 

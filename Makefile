@@ -871,12 +871,12 @@ prometheus-metric-parser: $(PROMETHEUS_METRIC_PARSER_BIN)
 #####################################################################
 
 # Fast build - builds only the Go binaries needed for the main image
-# Uses go-build.sh to ensure correct build flags
+# Uses go-build.sh with CGO_ENABLED=0 to create static binaries (no GLIBC deps)
 .PHONY: fast-binaries
 fast-binaries: build-prep
 	@echo "+ $@"
-	@echo "Building main image binaries for fast inner loop..."
-	$(GOBUILD) \
+	@echo "Building static binaries for fast inner loop (CGO_ENABLED=0)..."
+	CGO_ENABLED=0 $(GOBUILD) \
 		central \
 		compliance/cmd/compliance \
 		config-controller \
