@@ -5,6 +5,38 @@ package storage;
 option go_package = "./storage;storage";
 option java_package = "io.stackrox.proto.storage";
 
+// LabelSelector represents a Kubernetes label selector
+// Used for targeting namespaces or workloads by labels in StackroxPolicy/ClusterStackroxPolicy
+message LabelSelector {
+  // Map of {key,value} pairs for exact label matching
+  // Equivalent to matchLabels in Kubernetes
+  map<string, string> match_labels = 1;
+
+  message Requirement {
+    // key is the label key that the selector applies to
+    string key = 1;
+
+    enum Operator {
+      IN = 0;              // Label value must be in the set of values
+      NOT_IN = 1;          // Label value must not be in the set of values
+      EXISTS = 2;          // Label key must exist (values ignored)
+      DOES_NOT_EXIST = 3;  // Label key must not exist (values ignored)
+    }
+
+    // operator represents the relationship between key and values
+    Operator op = 2;
+
+    // values is an array of string values
+    // Required for IN and NOT_IN operators
+    // Ignored for EXISTS and DOES_NOT_EXIST operators
+    repeated string values = 3;
+  }
+
+  // matchExpressions is a list of label selector requirements
+  // Equivalent to matchExpressions in Kubernetes
+  repeated Requirement requirements = 2;
+}
+
 message Scope {
   string cluster = 1; // @gotags: crYaml:",omitempty"`
   string namespace = 2; // @gotags: crYaml:",omitempty"`
@@ -13,4 +45,14 @@ message Scope {
     string value = 2;
   }
   Label label = 3; // @gotags: crYaml:",omitempty"`
+
+  // namespace_selector is a Kubernetes label selector for targeting namespaces
+  // Policies will apply to all namespaces matching this selector
+  // Used by StackroxPolicy and ClusterStackroxPolicy
+  LabelSelector namespace_selector = 4; // @gotags: crYaml:"namespaceSelector,omitempty"`
+
+  // workload_selector is a Kubernetes label selector for targeting workloads
+  // Policies will apply to all workloads (deployments, pods, etc.) matching this selector
+  // Used by StackroxPolicy and ClusterStackroxPolicy
+  LabelSelector workload_selector = 5; // @gotags: crYaml:"workloadSelector,omitempty"`
 }

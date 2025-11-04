@@ -80,8 +80,9 @@ message Policy {
 }
 
 enum PolicySource {
-  IMPERATIVE = 0;
-  DECLARATIVE = 1;
+  IMPERATIVE = 0;  // Created via API/UI in Central
+  DECLARATIVE = 1; // Created via SecurityPolicy CR in Central
+  LOCAL = 2;       // Created via StackroxPolicy/ClusterStackroxPolicy CR in secured cluster
 }
 
 enum EventSource {
