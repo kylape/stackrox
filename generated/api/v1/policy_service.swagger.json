@@ -884,6 +884,56 @@
       },
       "title": "ExportPoliciesResponse is used by the API but it is defined in storage because we expect customers to store them.\nWe do backwards-compatibility checks on objects in the storge folder and those checks should be applied to this object"
     },
+    "storageLabelSelector": {
+      "type": "object",
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "This is actually a oneof, but we can't make it one due to backwards\ncompatibility constraints."
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/storageLabelSelectorRequirement"
+          }
+        }
+      },
+      "description": "Next available tag: 3",
+      "title": "Label selector components are joined with logical AND, see\n    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+    },
+    "storageLabelSelectorOperator": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "IN",
+        "NOT_IN",
+        "EXISTS",
+        "NOT_EXISTS"
+      ],
+      "default": "UNKNOWN"
+    },
+    "storageLabelSelectorRequirement": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "op": {
+          "$ref": "#/definitions/storageLabelSelectorOperator"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "Next available tag: 4"
+    },
     "storageLifecycleStage": {
       "type": "string",
       "enum": [
@@ -1155,9 +1205,11 @@
       "type": "string",
       "enum": [
         "IMPERATIVE",
-        "DECLARATIVE"
+        "DECLARATIVE",
+        "LOCAL"
       ],
-      "default": "IMPERATIVE"
+      "default": "IMPERATIVE",
+      "title": "- IMPERATIVE: Created via API/UI in Central\n - DECLARATIVE: Created via SecurityPolicy CR in Central\n - LOCAL: Created via StackroxPolicy/ClusterStackroxPolicy CR in secured cluster"
     },
     "storagePolicyValue": {
       "type": "object",
@@ -1178,6 +1230,14 @@
         },
         "label": {
           "$ref": "#/definitions/storageScopeLabel"
+        },
+        "namespaceSelector": {
+          "$ref": "#/definitions/storageLabelSelector",
+          "title": "namespace_selector is a Kubernetes label selector for targeting namespaces\nPolicies will apply to all namespaces matching this selector\nUsed by StackroxPolicy and ClusterStackroxPolicy"
+        },
+        "workloadSelector": {
+          "$ref": "#/definitions/storageLabelSelector",
+          "title": "workload_selector is a Kubernetes label selector for targeting workloads\nPolicies will apply to all workloads (deployments, pods, etc.) matching this selector\nUsed by StackroxPolicy and ClusterStackroxPolicy"
         }
       }
     },

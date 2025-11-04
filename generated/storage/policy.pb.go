@@ -25,8 +25,9 @@ const (
 type PolicySource int32
 
 const (
-	PolicySource_IMPERATIVE  PolicySource = 0
-	PolicySource_DECLARATIVE PolicySource = 1
+	PolicySource_IMPERATIVE  PolicySource = 0 // Created via API/UI in Central
+	PolicySource_DECLARATIVE PolicySource = 1 // Created via SecurityPolicy CR in Central
+	PolicySource_LOCAL       PolicySource = 2 // Created via StackroxPolicy/ClusterStackroxPolicy CR in secured cluster
 )
 
 // Enum value maps for PolicySource.
@@ -34,10 +35,12 @@ var (
 	PolicySource_name = map[int32]string{
 		0: "IMPERATIVE",
 		1: "DECLARATIVE",
+		2: "LOCAL",
 	}
 	PolicySource_value = map[string]int32{
 		"IMPERATIVE":  0,
 		"DECLARATIVE": 1,
+		"LOCAL":       2,
 	}
 )
 
@@ -1384,11 +1387,12 @@ const file_storage_policy_proto_rawDesc = "" +
 	"\x05Image\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04nameJ\x04\b\x02\x10\x03\"E\n" +
 	"\x16ExportPoliciesResponse\x12+\n" +
-	"\bpolicies\x18\x01 \x03(\v2\x0f.storage.PolicyR\bpolicies*/\n" +
+	"\bpolicies\x18\x01 \x03(\v2\x0f.storage.PolicyR\bpolicies*:\n" +
 	"\fPolicySource\x12\x0e\n" +
 	"\n" +
 	"IMPERATIVE\x10\x00\x12\x0f\n" +
-	"\vDECLARATIVE\x10\x01*\\\n" +
+	"\vDECLARATIVE\x10\x01\x12\t\n" +
+	"\x05LOCAL\x10\x02*\\\n" +
 	"\vEventSource\x12\x12\n" +
 	"\x0eNOT_APPLICABLE\x10\x00\x12\x14\n" +
 	"\x10DEPLOYMENT_EVENT\x10\x01\x12\x13\n" +
