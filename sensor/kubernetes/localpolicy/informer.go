@@ -10,29 +10,49 @@ import (
 	"github.com/stackrox/rox/pkg/logging"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 )
 
 var (
 	log = logging.LoggerForModule()
+
+	// GVR for StackroxPolicy (namespace-scoped)
+	stackroxPolicyGVR = schema.GroupVersionResource{
+		Group:    "policy.stackrox.io",
+		Version:  "v1alpha1",
+		Resource: "stackroxpolicies",
+	}
+
+	// GVR for ClusterStackroxPolicy (cluster-scoped)
+	clusterStackroxPolicyGVR = schema.GroupVersionResource{
+		Group:    "policy.stackrox.io",
+		Version:  "v1alpha1",
+		Resource: "clusterstackroxpolicies",
+	}
 )
 
 // Manager manages local policy informers for sensor runtime evaluation
 type Manager struct {
-	k8sClient kubernetes.Interface
-	stopCh    chan struct{}
+	dynamicClient dynamic.Interface
+	stopCh        chan struct{}
+
+	policyInformer        cache.SharedIndexInformer
+	clusterPolicyInformer cache.SharedIndexInformer
 
 	// TODO: Add reference to sensor's policy evaluator
 	// policyEvaluator *detector.PolicyEvaluator
 }
 
 // NewManager creates a new local policy informer manager for sensor
-func NewManager(k8sClient kubernetes.Interface /* TODO: add policyEvaluator */) *Manager {
+func NewManager(dynamicClient dynamic.Interface /* TODO: add policyEvaluator */) *Manager {
 	return &Manager{
-		k8sClient: k8sClient,
-		stopCh:    make(chan struct{}),
+		dynamicClient: dynamicClient,
+		stopCh:        make(chan struct{}),
 		// policyEvaluator: policyEvaluator,
 	}
 }
@@ -42,34 +62,46 @@ func NewManager(k8sClient kubernetes.Interface /* TODO: add policyEvaluator */) 
 func (m *Manager) Start(ctx context.Context) error {
 	log.Info("Starting local policy informers for sensor runtime evaluation")
 
-	// Create informer factory
-	// TODO: Replace with generated clientset for policy.stackrox.io
-	// For now, using dynamic client or custom informers
-	factory := informers.NewSharedInformerFactory(m.k8sClient, 10*time.Minute)
+	// Create dynamic informer factory
+	factory := dynamicinformer.NewDynamicSharedInformerFactory(m.dynamicClient, 10*time.Minute)
 
-	// TODO: Get StackroxPolicy informer
-	// policyInformer := factory.Policy().V1alpha1().StackroxPolicies()
+	// Get StackroxPolicy informer (namespace-scoped)
+	m.policyInformer = factory.ForResource(stackroxPolicyGVR).Informer()
 
-	// TODO: Get ClusterStackroxPolicy informer
-	// clusterPolicyInformer := factory.Policy().V1alpha1().ClusterStackroxPolicies()
+	// Get ClusterStackroxPolicy informer (cluster-scoped)
+	m.clusterPolicyInformer = factory.ForResource(clusterStackroxPolicyGVR).Informer()
 
 	// Register event handlers for StackroxPolicy
-	// policyInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-	// 	AddFunc:    m.handlePolicyAdd,
-	// 	UpdateFunc: m.handlePolicyUpdate,
-	// 	DeleteFunc: m.handlePolicyDelete,
-	// })
+	_, err := m.policyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    m.handlePolicyAdd,
+		UpdateFunc: m.handlePolicyUpdate,
+		DeleteFunc: m.handlePolicyDelete,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add event handler for StackroxPolicy: %w", err)
+	}
 
 	// Register event handlers for ClusterStackroxPolicy
-	// clusterPolicyInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-	// 	AddFunc:    m.handleClusterPolicyAdd,
-	// 	UpdateFunc: m.handleClusterPolicyUpdate,
-	// 	DeleteFunc: m.handleClusterPolicyDelete,
-	// })
+	_, err = m.clusterPolicyInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    m.handleClusterPolicyAdd,
+		UpdateFunc: m.handleClusterPolicyUpdate,
+		DeleteFunc: m.handleClusterPolicyDelete,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add event handler for ClusterStackroxPolicy: %w", err)
+	}
 
 	// Start informers
-	// factory.Start(m.stopCh)
-	// factory.WaitForCacheSync(m.stopCh)
+	factory.Start(m.stopCh)
+
+	// Wait for cache sync
+	synced := factory.WaitForCacheSync(m.stopCh)
+	if !synced[stackroxPolicyGVR] {
+		return fmt.Errorf("failed to sync StackroxPolicy cache")
+	}
+	if !synced[clusterStackroxPolicyGVR] {
+		return fmt.Errorf("failed to sync ClusterStackroxPolicy cache")
+	}
 
 	log.Info("Local policy informers started successfully")
 	return nil
@@ -83,9 +115,16 @@ func (m *Manager) Stop() {
 
 // handlePolicyAdd processes new StackroxPolicy CRs
 func (m *Manager) handlePolicyAdd(obj interface{}) {
-	policy, ok := obj.(*policyv1alpha1.StackroxPolicy)
+	unstructuredObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
-		log.Errorf("Expected StackroxPolicy but got %T", obj)
+		log.Errorf("Expected *unstructured.Unstructured but got %T", obj)
+		return
+	}
+
+	// Convert unstructured to typed StackroxPolicy
+	policy := &policyv1alpha1.StackroxPolicy{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, policy); err != nil {
+		log.Errorf("Failed to convert unstructured to StackroxPolicy: %v", err)
 		return
 	}
 
@@ -129,15 +168,28 @@ func (m *Manager) handlePolicyAdd(obj interface{}) {
 
 // handlePolicyUpdate processes updated StackroxPolicy CRs
 func (m *Manager) handlePolicyUpdate(oldObj, newObj interface{}) {
-	oldPolicy, ok := oldObj.(*policyv1alpha1.StackroxPolicy)
+	oldUnstructured, ok := oldObj.(*unstructured.Unstructured)
 	if !ok {
-		log.Errorf("Expected StackroxPolicy but got %T", oldObj)
+		log.Errorf("Expected *unstructured.Unstructured but got %T", oldObj)
 		return
 	}
 
-	newPolicy, ok := newObj.(*policyv1alpha1.StackroxPolicy)
+	newUnstructured, ok := newObj.(*unstructured.Unstructured)
 	if !ok {
-		log.Errorf("Expected StackroxPolicy but got %T", newObj)
+		log.Errorf("Expected *unstructured.Unstructured but got %T", newObj)
+		return
+	}
+
+	// Convert to typed objects
+	oldPolicy := &policyv1alpha1.StackroxPolicy{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(oldUnstructured.Object, oldPolicy); err != nil {
+		log.Errorf("Failed to convert old unstructured to StackroxPolicy: %v", err)
+		return
+	}
+
+	newPolicy := &policyv1alpha1.StackroxPolicy{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(newUnstructured.Object, newPolicy); err != nil {
+		log.Errorf("Failed to convert new unstructured to StackroxPolicy: %v", err)
 		return
 	}
 
@@ -150,25 +202,36 @@ func (m *Manager) handlePolicyUpdate(oldObj, newObj interface{}) {
 
 	log.Infof("Processing updated StackroxPolicy: %s/%s", newPolicy.Namespace, newPolicy.Name)
 
-	// TODO: Implement update logic similar to Add
-	// Should remove old policy and add new one, or update in-place
+	// Treat update as delete + add
+	m.handlePolicyDelete(oldObj)
+	m.handlePolicyAdd(newObj)
 }
 
 // handlePolicyDelete processes deleted StackroxPolicy CRs
 func (m *Manager) handlePolicyDelete(obj interface{}) {
-	policy, ok := obj.(*policyv1alpha1.StackroxPolicy)
+	var unstructuredObj *unstructured.Unstructured
+	var ok bool
+
+	unstructuredObj, ok = obj.(*unstructured.Unstructured)
 	if !ok {
 		// Handle DeletedFinalStateUnknown
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			log.Errorf("Expected StackroxPolicy or DeletedFinalStateUnknown but got %T", obj)
+			log.Errorf("Expected *unstructured.Unstructured or DeletedFinalStateUnknown but got %T", obj)
 			return
 		}
-		policy, ok = tombstone.Obj.(*policyv1alpha1.StackroxPolicy)
+		unstructuredObj, ok = tombstone.Obj.(*unstructured.Unstructured)
 		if !ok {
 			log.Errorf("DeletedFinalStateUnknown contained unexpected object: %T", tombstone.Obj)
 			return
 		}
+	}
+
+	// Convert to typed StackroxPolicy
+	policy := &policyv1alpha1.StackroxPolicy{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, policy); err != nil {
+		log.Errorf("Failed to convert unstructured to StackroxPolicy: %v", err)
+		return
 	}
 
 	log.Infof("Processing deleted StackroxPolicy: %s/%s", policy.Namespace, policy.Name)
@@ -193,25 +256,137 @@ func (m *Manager) handlePolicyDelete(obj interface{}) {
 
 // handleClusterPolicyAdd processes new ClusterStackroxPolicy CRs
 func (m *Manager) handleClusterPolicyAdd(obj interface{}) {
-	policy, ok := obj.(*policyv1alpha1.ClusterStackroxPolicy)
+	unstructuredObj, ok := obj.(*unstructured.Unstructured)
 	if !ok {
-		log.Errorf("Expected ClusterStackroxPolicy but got %T", obj)
+		log.Errorf("Expected *unstructured.Unstructured but got %T", obj)
+		return
+	}
+
+	// Convert unstructured to typed ClusterStackroxPolicy
+	policy := &policyv1alpha1.ClusterStackroxPolicy{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, policy); err != nil {
+		log.Errorf("Failed to convert unstructured to ClusterStackroxPolicy: %v", err)
 		return
 	}
 
 	log.Infof("Processing new ClusterStackroxPolicy: %s", policy.Name)
 
-	// TODO: Similar logic to StackroxPolicy but with isClusterScoped=true
+	// Check if policy has RUNTIME lifecycle stage
+	if !policyv1alpha1.ShouldApplyToSensor(&policy.Spec) {
+		log.Debugf("ClusterStackroxPolicy %s does not have RUNTIME stage, marking as not applicable", policy.Name)
+		m.updateClusterPolicyStatusNotApplicable(policy)
+		return
+	}
+
+	// Convert CRD to storage.Policy (cluster-scoped)
+	storagePolicy, err := policyv1alpha1.ToStoragePolicy(
+		&policy.Spec,
+		"", // no namespace for cluster-scoped
+		policy.Name,
+		true, // cluster-scoped
+	)
+	if err != nil {
+		log.Errorf("Failed to convert ClusterStackroxPolicy %s: %v", policy.Name, err)
+		m.updateClusterPolicyStatusError(policy, policyv1alpha1.ReasonConversionError, err)
+		return
+	}
+
+	// Load policy into sensor's runtime evaluation engine
+	if err := m.loadPolicyIntoEvaluator(storagePolicy); err != nil {
+		log.Errorf("Failed to load cluster policy %s into sensor evaluator: %v",
+			storagePolicy.GetId(), err)
+		m.updateClusterPolicyStatusError(policy, policyv1alpha1.ReasonInternalError, err)
+		return
+	}
+
+	log.Infof("Successfully loaded ClusterStackroxPolicy %s into sensor (ID: %s)",
+		policy.Name, storagePolicy.GetId())
+	m.updateClusterPolicyStatusSuccess(policy, storagePolicy.GetId())
 }
 
 // handleClusterPolicyUpdate processes updated ClusterStackroxPolicy CRs
 func (m *Manager) handleClusterPolicyUpdate(oldObj, newObj interface{}) {
-	// TODO: Implement similar to handlePolicyUpdate
+	oldUnstructured, ok := oldObj.(*unstructured.Unstructured)
+	if !ok {
+		log.Errorf("Expected *unstructured.Unstructured but got %T", oldObj)
+		return
+	}
+
+	newUnstructured, ok := newObj.(*unstructured.Unstructured)
+	if !ok {
+		log.Errorf("Expected *unstructured.Unstructured but got %T", newObj)
+		return
+	}
+
+	// Convert to typed objects
+	oldPolicy := &policyv1alpha1.ClusterStackroxPolicy{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(oldUnstructured.Object, oldPolicy); err != nil {
+		log.Errorf("Failed to convert old unstructured to ClusterStackroxPolicy: %v", err)
+		return
+	}
+
+	newPolicy := &policyv1alpha1.ClusterStackroxPolicy{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(newUnstructured.Object, newPolicy); err != nil {
+		log.Errorf("Failed to convert new unstructured to ClusterStackroxPolicy: %v", err)
+		return
+	}
+
+	// Ignore updates that don't change the spec
+	if oldPolicy.Generation == newPolicy.Generation {
+		log.Debugf("Ignoring status-only update for ClusterStackroxPolicy %s", newPolicy.Name)
+		return
+	}
+
+	log.Infof("Processing updated ClusterStackroxPolicy: %s", newPolicy.Name)
+
+	// Treat update as delete + add
+	m.handleClusterPolicyDelete(oldObj)
+	m.handleClusterPolicyAdd(newObj)
 }
 
 // handleClusterPolicyDelete processes deleted ClusterStackroxPolicy CRs
 func (m *Manager) handleClusterPolicyDelete(obj interface{}) {
-	// TODO: Implement similar to handlePolicyDelete
+	var unstructuredObj *unstructured.Unstructured
+	var ok bool
+
+	unstructuredObj, ok = obj.(*unstructured.Unstructured)
+	if !ok {
+		// Handle DeletedFinalStateUnknown
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			log.Errorf("Expected *unstructured.Unstructured or DeletedFinalStateUnknown but got %T", obj)
+			return
+		}
+		unstructuredObj, ok = tombstone.Obj.(*unstructured.Unstructured)
+		if !ok {
+			log.Errorf("DeletedFinalStateUnknown contained unexpected object: %T", tombstone.Obj)
+			return
+		}
+	}
+
+	// Convert to typed ClusterStackroxPolicy
+	policy := &policyv1alpha1.ClusterStackroxPolicy{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, policy); err != nil {
+		log.Errorf("Failed to convert unstructured to ClusterStackroxPolicy: %v", err)
+		return
+	}
+
+	log.Infof("Processing deleted ClusterStackroxPolicy: %s", policy.Name)
+
+	// Get the local policy ID from status
+	if policy.Status.LocalPolicyID == "" {
+		log.Debugf("ClusterStackroxPolicy %s has no LocalPolicyID, nothing to remove", policy.Name)
+		return
+	}
+
+	// Remove from sensor's evaluation engine
+	if err := m.removePolicyFromEvaluator(policy.Status.LocalPolicyID); err != nil {
+		log.Errorf("Failed to remove cluster policy %s from sensor evaluator: %v",
+			policy.Status.LocalPolicyID, err)
+		return
+	}
+
+	log.Infof("Successfully removed ClusterStackroxPolicy %s from sensor", policy.Name)
 }
 
 // loadPolicyIntoEvaluator loads a policy into sensor's runtime evaluation engine
@@ -281,12 +456,12 @@ func (m *Manager) updateStatusError(policy *policyv1alpha1.StackroxPolicy, reaso
 
 // updateStatus updates the policy status with the given condition
 func (m *Manager) updateStatus(policy *policyv1alpha1.StackroxPolicy, condition metav1.Condition, localPolicyID string) {
-	// TODO: Use generated clientset to update status
+	// TODO: Use dynamic client to update status subresource
 	// For now, logging what would be updated
 	log.Infof("Would update StackroxPolicy %s/%s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
 		policy.Namespace, policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
 
-	// Example implementation (requires generated clientset):
+	// Example implementation (using dynamic client):
 	/*
 	ctx := context.Background()
 
@@ -308,12 +483,17 @@ func (m *Manager) updateStatus(policy *policyv1alpha1.StackroxPolicy, condition 
 	now := metav1.Now()
 	policyCopy.Status.LastEvaluated = &now
 
-	// Update status subresource
-	_, err := m.policyClient.PolicyV1alpha1().StackroxPolicies(policy.Namespace).UpdateStatus(
-		ctx,
-		policyCopy,
-		metav1.UpdateOptions{},
-	)
+	// Convert to unstructured for dynamic client
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(policyCopy)
+	if err != nil {
+		log.Errorf("Failed to convert policy to unstructured: %v", err)
+		return
+	}
+
+	// Update status subresource using dynamic client
+	_, err = m.dynamicClient.Resource(stackroxPolicyGVR).
+		Namespace(policy.Namespace).
+		UpdateStatus(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
 	if err != nil {
 		if errors.IsConflict(err) {
 			// Retry on conflict
@@ -323,4 +503,61 @@ func (m *Manager) updateStatus(policy *policyv1alpha1.StackroxPolicy, condition 
 		}
 	}
 	*/
+}
+
+// updateClusterPolicyStatusSuccess updates the cluster policy status with success condition
+func (m *Manager) updateClusterPolicyStatusSuccess(policy *policyv1alpha1.ClusterStackroxPolicy, localPolicyID string) {
+	condition := policyv1alpha1.NewCondition(
+		policyv1alpha1.ConditionAcceptedBySensor,
+		metav1.ConditionTrue,
+		policyv1alpha1.ReasonPolicyLoaded,
+		policyv1alpha1.MessagePolicyLoaded,
+	)
+	condition.ObservedGeneration = policy.Generation
+
+	m.updateClusterPolicyStatus(policy, condition, localPolicyID)
+}
+
+// updateClusterPolicyStatusNotApplicable updates the cluster policy status indicating it's not for sensor
+func (m *Manager) updateClusterPolicyStatusNotApplicable(policy *policyv1alpha1.ClusterStackroxPolicy) {
+	condition := policyv1alpha1.NewCondition(
+		policyv1alpha1.ConditionAcceptedBySensor,
+		metav1.ConditionTrue,
+		policyv1alpha1.ReasonNotApplicable,
+		policyv1alpha1.MessageDeployOnlyNotForSensor,
+	)
+	condition.ObservedGeneration = policy.Generation
+
+	m.updateClusterPolicyStatus(policy, condition, "")
+}
+
+// updateClusterPolicyStatusError updates the cluster policy status with error condition
+func (m *Manager) updateClusterPolicyStatusError(policy *policyv1alpha1.ClusterStackroxPolicy, reason string, err error) {
+	var message string
+	switch reason {
+	case policyv1alpha1.ReasonConversionError:
+		message = policyv1alpha1.MessageConversionError + ": " + err.Error()
+	case policyv1alpha1.ReasonInternalError:
+		message = policyv1alpha1.MessageInternalError + ": " + err.Error()
+	default:
+		message = err.Error()
+	}
+
+	condition := policyv1alpha1.NewCondition(
+		policyv1alpha1.ConditionAcceptedBySensor,
+		metav1.ConditionFalse,
+		reason,
+		message,
+	)
+	condition.ObservedGeneration = policy.Generation
+
+	m.updateClusterPolicyStatus(policy, condition, "")
+}
+
+// updateClusterPolicyStatus updates the cluster policy status with the given condition
+func (m *Manager) updateClusterPolicyStatus(policy *policyv1alpha1.ClusterStackroxPolicy, condition metav1.Condition, localPolicyID string) {
+	// TODO: Use dynamic client to update status subresource
+	// For now, logging what would be updated
+	log.Infof("Would update ClusterStackroxPolicy %s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
+		policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
 }
