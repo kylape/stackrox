@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/stackrox/rox/sensor/kubernetes/crs"
 	"github.com/stackrox/rox/sensor/kubernetes/fake"
 	"github.com/stackrox/rox/sensor/kubernetes/helm"
+	"github.com/stackrox/rox/sensor/kubernetes/localpolicy"
 	"github.com/stackrox/rox/sensor/kubernetes/sensor"
 	"golang.org/x/sys/unix"
 )
@@ -103,19 +105,31 @@ func main() {
 		WithIntrospectionK8sClient(sharedClientInterfaceForFetchingPodOwnership))
 	utils.CrashOnError(err)
 
+	// Create local policy informer manager for runtime policy evaluation
+	localPolicyManager := localpolicy.NewManager(sharedClientInterface.Dynamic())
+
 	s.Start()
 	gcp.Singleton().Start()
+
+	// Start local policy informers
+	ctx := context.Background()
+	if err := localPolicyManager.Start(ctx); err != nil {
+		log.Errorf("Failed to start local policy informers: %v", err)
+		// Non-fatal - sensor can still run without local policies
+	}
 
 	for {
 		select {
 		case sig := <-sigs:
 			log.Infof("Caught %s signal", sig)
+			localPolicyManager.Stop()
 			s.Stop()
 			gcp.Singleton().Stop()
 		case <-s.Stopped().Done():
 			if err := s.Stopped().Err(); err != nil {
 				log.Fatalf("Sensor exited with error: %v", err)
 			}
+			localPolicyManager.Stop()
 			log.Info("Sensor exited normally")
 			return
 		}

@@ -13,6 +13,7 @@ import (
 	"github.com/stackrox/rox/pkg/env"
 	"github.com/stackrox/rox/pkg/features"
 	pkgGRPC "github.com/stackrox/rox/pkg/grpc"
+	"github.com/stackrox/rox/pkg/k8sutil"
 	"github.com/stackrox/rox/pkg/logging"
 	"github.com/stackrox/rox/pkg/memlimit"
 	"github.com/stackrox/rox/pkg/mtls"
@@ -22,10 +23,12 @@ import (
 	"github.com/stackrox/rox/pkg/utils"
 	"github.com/stackrox/rox/pkg/version"
 	"github.com/stackrox/rox/sensor/admission-control/alerts"
+	"github.com/stackrox/rox/sensor/admission-control/localpolicy"
 	"github.com/stackrox/rox/sensor/admission-control/manager"
 	"github.com/stackrox/rox/sensor/admission-control/service"
 	"github.com/stackrox/rox/sensor/admission-control/settingswatch"
 	"golang.org/x/sys/unix"
+	"k8s.io/client-go/dynamic"
 )
 
 const (
@@ -86,6 +89,24 @@ func mainCmd() error {
 	mgr := manager.New(sensorConn, namespace)
 	mgr.Start()
 
+	// Create dynamic client for local policy informers
+	var localPolicyMgr *localpolicy.Manager
+	k8sConfig, err := k8sutil.GetK8sInClusterConfig()
+	if err != nil {
+		log.Errorf("Failed to get in-cluster config for local policy informers: %v. Local policies will not be evaluated.", err)
+	} else {
+		dynamicClient, err := dynamic.NewForConfig(k8sConfig)
+		if err != nil {
+			log.Errorf("Failed to create dynamic client for local policy informers: %v. Local policies will not be evaluated.", err)
+		} else {
+			localPolicyMgr = localpolicy.NewManager(dynamicClient)
+			if err := localPolicyMgr.Start(context.Background()); err != nil {
+				log.Errorf("Failed to start local policy informers: %v. Local policies will not be evaluated.", err)
+				localPolicyMgr = nil
+			}
+		}
+	}
+
 	if err := settingswatch.WatchK8sForSettingsUpdatesAsync(mgr.Stopped(), mgr.SettingsUpdateC(), namespace); err != nil {
 		log.Errorf("Could not watch Kubernetes for settings updates: %v. Functionality might be impacted", err)
 	}
@@ -131,19 +152,31 @@ func mainCmd() error {
 
 				if sigTermCounter == 1 {
 					log.Infof("First SIGTERM. Marking as not ready, will exit in %v", internalGracePeriod)
+					if localPolicyMgr != nil {
+						localPolicyMgr.Stop()
+					}
 					mgr.Stop()
 					gracePeriodTimer = time.After(internalGracePeriod)
 				} else {
 					log.Info("Second SIGTERM. Exiting immediately.")
+					if localPolicyMgr != nil {
+						localPolicyMgr.Stop()
+					}
 					return nil
 				}
 			} else {
 				log.Info("Received signal other than SIGTERM. Exiting immediately.")
+				if localPolicyMgr != nil {
+					localPolicyMgr.Stop()
+				}
 				return nil
 			}
 
 		case <-gracePeriodTimer:
 			log.Infof("Grace period of %v has expired. Exiting ...", internalGracePeriod)
+			if localPolicyMgr != nil {
+				localPolicyMgr.Stop()
+			}
 			return nil
 		}
 	}
