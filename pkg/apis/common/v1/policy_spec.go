@@ -32,13 +32,14 @@ const (
 )
 
 // EventSource defines which events should trigger policy execution
-// +kubebuilder:validation:Enum=NOT_APPLICABLE;DEPLOYMENT_EVENT;AUDIT_LOG_EVENT
+// +kubebuilder:validation:Enum=NOT_APPLICABLE;DEPLOYMENT_EVENT;AUDIT_LOG_EVENT;NODE_EVENT
 type EventSource string
 
 const (
 	EventSourceNotApplicable   EventSource = "NOT_APPLICABLE"
 	EventSourceDeploymentEvent EventSource = "DEPLOYMENT_EVENT"
 	EventSourceAuditLogEvent   EventSource = "AUDIT_LOG_EVENT"
+	EventSourceNodeEvent       EventSource = "NODE_EVENT"
 )
 
 // EnforcementAction defines enforcement actions for policy violations
@@ -89,10 +90,9 @@ type Exclusion struct {
 	// +optional
 	Image *ExclusionImage `json:"image,omitempty"`
 
-	// Expiration is when this exclusion expires (RFC3339 format)
+	// Expiration is when this exclusion expires
 	// +optional
-	// +kubebuilder:validation:Format="date-time"
-	Expiration string `json:"expiration,omitempty"`
+	Expiration *metav1.Time `json:"expiration,omitempty"`
 
 	// WorkloadSelector excludes workloads matching this label selector
 	// +optional
@@ -128,17 +128,25 @@ type PolicySection struct {
 	PolicyGroups []PolicyGroup `json:"policyGroups"`
 }
 
+// BooleanOperator defines how policy values are combined
+// +kubebuilder:validation:Enum=OR;AND
+type BooleanOperator string
+
+const (
+	BooleanOperatorOr  BooleanOperator = "OR"
+	BooleanOperatorAnd BooleanOperator = "AND"
+)
+
 // PolicyGroup defines a group of policy criteria
 type PolicyGroup struct {
 	// FieldName defines which field on a deployment or image this PolicyGroup evaluates
 	// See https://docs.openshift.com/acs/operating/manage-security-policies.html#policy-criteria_manage-security-policies
 	FieldName string `json:"fieldName"`
 
-	// +kubebuilder:validation:Enum=OR;AND
 	// BooleanOperator determines if the values are combined with OR or AND
 	// Defaults to OR
 	// +optional
-	BooleanOperator string `json:"booleanOperator,omitempty"`
+	BooleanOperator BooleanOperator `json:"booleanOperator,omitempty"`
 
 	// Negate determines if the evaluation of this PolicyGroup is negated
 	// Defaults to false

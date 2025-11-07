@@ -8,7 +8,6 @@ import (
 	policyv1alpha1 "github.com/stackrox/rox/apis/policy.stackrox.io/v1alpha1"
 	"github.com/stackrox/rox/generated/storage"
 	"github.com/stackrox/rox/pkg/logging"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -272,7 +271,9 @@ func (m *Manager) handleClusterPolicyAdd(obj interface{}) {
 	log.Infof("Processing new ClusterStackroxPolicy: %s", policy.Name)
 
 	// Check if policy has RUNTIME lifecycle stage
-	if !policyv1alpha1.ShouldApplyToSensor(&policy.Spec) {
+	// Cast ClusterStackroxPolicySpec to StackroxPolicySpec since they're structurally identical
+	spec := (*policyv1alpha1.StackroxPolicySpec)(&policy.Spec)
+	if !policyv1alpha1.ShouldApplyToSensor(spec) {
 		log.Debugf("ClusterStackroxPolicy %s does not have RUNTIME stage, marking as not applicable", policy.Name)
 		m.updateClusterPolicyStatusNotApplicable(policy)
 		return
@@ -280,7 +281,7 @@ func (m *Manager) handleClusterPolicyAdd(obj interface{}) {
 
 	// Convert CRD to storage.Policy (cluster-scoped)
 	storagePolicy, err := policyv1alpha1.ToStoragePolicy(
-		&policy.Spec,
+		spec,
 		"", // no namespace for cluster-scoped
 		policy.Name,
 		true, // cluster-scoped

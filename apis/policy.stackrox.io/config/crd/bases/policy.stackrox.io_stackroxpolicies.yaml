@@ -98,6 +98,7 @@ spec:
                 - NOT_APPLICABLE
                 - DEPLOYMENT_EVENT
                 - AUDIT_LOG_EVENT
+                - NODE_EVENT
                 type: string
               exclusions:
                 description: |-
@@ -220,8 +221,7 @@ spec:
                           type: object
                       type: object
                     expiration:
-                      description: Expiration is when this exclusion expires (RFC3339
-                        format)
+                      description: Expiration is when this exclusion expires
                       format: date-time
                       type: string
                     image:

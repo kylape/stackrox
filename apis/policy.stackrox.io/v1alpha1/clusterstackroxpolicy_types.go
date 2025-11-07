@@ -23,7 +23,7 @@ import (
 // ClusterStackroxPolicySpec defines the desired state of ClusterStackroxPolicy
 // This is identical to StackroxPolicySpec but for cluster-scoped policies
 // Cluster-scoped policies can target resources across all namespaces in the cluster
-type ClusterStackroxPolicySpec = StackroxPolicySpec
+type ClusterStackroxPolicySpec StackroxPolicySpec
 
 // ClusterStackroxPolicyStatus defines the observed state of ClusterStackroxPolicy
 type ClusterStackroxPolicyStatus struct {
