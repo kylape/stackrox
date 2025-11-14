@@ -35,6 +35,10 @@ type Manager interface {
 	// submitted before Sync was called, the given context expires, or the manager is stopped.
 	// In the latter two cases, an error is returned.
 	Sync(ctx context.Context) error
+
+	// Local policy management for policy-as-code CRDs
+	AddLocalPolicy(policy *storage.Policy) error
+	RemoveLocalPolicy(policyID string) error
 }
 
 // New creates a new admission control manager

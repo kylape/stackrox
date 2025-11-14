@@ -66,6 +66,10 @@ type Detector interface {
 	ProcessPolicySync(ctx context.Context, sync *central.PolicySync) error
 	ProcessReprocessDeployments() error
 	ProcessUpdatedImage(image *storage.Image) error
+
+	// Local policy management for policy-as-code CRDs
+	AddLocalPolicy(policy *storage.Policy) error
+	RemoveLocalPolicy(policyID string) error
 }
 
 // New returns a new detector
@@ -337,6 +341,43 @@ func (d *detectorImpl) ProcessUpdatedImage(image *storage.Image) error {
 	}
 	d.enricher.imageCache.Add(key, newValue)
 	d.admissionCacheNeedsFlush = true
+	return nil
+}
+
+// AddLocalPolicy adds a local policy from a policy-as-code CRD to the appropriate policy set(s)
+func (d *detectorImpl) AddLocalPolicy(policy *storage.Policy) error {
+	log.Infof("Adding local policy %s (ID: %s) to detector", policy.GetName(), policy.GetId())
+
+	// Use the unified detector's UpsertPolicy method
+	if err := d.unifiedDetector.UpsertPolicy(policy); err != nil {
+		return errors.Wrapf(err, "failed to add local policy %s", policy.GetId())
+	}
+
+	// Update admission control settings if this is a deploy-time policy
+	hasDeployStage := false
+	for _, stage := range policy.GetLifecycleStages() {
+		if stage == storage.LifecycleStage_DEPLOY {
+			hasDeployStage = true
+			break
+		}
+	}
+
+	if hasDeployStage && d.admCtrlSettingsMgr != nil {
+		// Trigger admission control to refresh its policy cache
+		// We can't easily get all policies here, so we'll just trigger a refresh
+		log.Debugf("Local deploy-time policy %s added, admission control may need refresh", policy.GetId())
+	}
+
+	return nil
+}
+
+// RemoveLocalPolicy removes a local policy from the appropriate policy set(s)
+func (d *detectorImpl) RemoveLocalPolicy(policyID string) error {
+	log.Infof("Removing local policy %s from detector", policyID)
+
+	// Use the unified detector's RemovePolicy method
+	d.unifiedDetector.RemovePolicy(policyID)
+
 	return nil
 }
 

@@ -99,7 +99,7 @@ func mainCmd() error {
 		if err != nil {
 			log.Errorf("Failed to create dynamic client for local policy informers: %v. Local policies will not be evaluated.", err)
 		} else {
-			localPolicyMgr = localpolicy.NewManager(dynamicClient)
+			localPolicyMgr = localpolicy.NewManager(dynamicClient, mgr)
 			if err := localPolicyMgr.Start(context.Background()); err != nil {
 				log.Errorf("Failed to start local policy informers: %v. Local policies will not be evaluated.", err)
 				localPolicyMgr = nil

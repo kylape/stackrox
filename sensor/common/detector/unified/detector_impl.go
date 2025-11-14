@@ -67,3 +67,40 @@ func (d *detectorImpl) DetectAuditLogEvents(auditEvents *sensor.AuditEvents) []*
 	}
 	return alerts
 }
+
+// UpsertPolicy adds or updates a single policy in the appropriate detector(s)
+func (d *detectorImpl) UpsertPolicy(policy *storage.Policy) error {
+	var errs []error
+
+	// Add to runtime detector if policy has RUNTIME lifecycle stage
+	if isLifecycleStage(policy, storage.LifecycleStage_RUNTIME) {
+		if err := d.runtimeDetector.PolicySet().UpsertPolicy(policy); err != nil {
+			errs = append(errs, err)
+			log.Errorf("Failed to upsert policy %s to runtime detector: %v", policy.GetId(), err)
+		} else {
+			log.Debugf("Upserted policy %s to runtime detector", policy.GetId())
+		}
+	}
+
+	// Add to deploy detector if policy has DEPLOY lifecycle stage
+	if isLifecycleStage(policy, storage.LifecycleStage_DEPLOY) {
+		if err := d.deploytimeDetector.PolicySet().UpsertPolicy(policy); err != nil {
+			errs = append(errs, err)
+			log.Errorf("Failed to upsert policy %s to deploy detector: %v", policy.GetId(), err)
+		} else {
+			log.Debugf("Upserted policy %s to deploy detector", policy.GetId())
+		}
+	}
+
+	if len(errs) > 0 {
+		return errs[0] // Return first error
+	}
+	return nil
+}
+
+// RemovePolicy removes a policy from both detectors
+func (d *detectorImpl) RemovePolicy(policyID string) {
+	log.Debugf("Removing policy %s from both runtime and deploy detectors", policyID)
+	d.runtimeDetector.PolicySet().RemovePolicy(policyID)
+	d.deploytimeDetector.PolicySet().RemovePolicy(policyID)
+}

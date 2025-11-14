@@ -23,6 +23,10 @@ type Detector interface {
 	DetectKubeEventForDeployment(enhancedDeployment booleanpolicy.EnhancedDeployment, kubeEvent *storage.KubernetesEvent) []*storage.Alert
 	DetectNetworkFlowForDeployment(enhancedDeployment booleanpolicy.EnhancedDeployment, flow *augmentedobjs.NetworkFlowDetails) []*storage.Alert
 	DetectAuditLogEvents(auditEvent *sensor.AuditEvents) []*storage.Alert
+
+	// Local policy management for policy-as-code CRDs
+	UpsertPolicy(policy *storage.Policy) error
+	RemovePolicy(policyID string)
 }
 
 // NewDetector returns a new detector.

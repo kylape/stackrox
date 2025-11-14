@@ -35,24 +35,28 @@ var (
 	}
 )
 
+// AdmissionManager is the interface for admission control manager (avoid circular dependency)
+type AdmissionManager interface {
+	AddLocalPolicy(policy *storage.Policy) error
+	RemoveLocalPolicy(policyID string) error
+}
+
 // Manager manages local policy informers for admission control deploy-time evaluation
 type Manager struct {
 	dynamicClient dynamic.Interface
+	admManager    AdmissionManager
 	stopCh        chan struct{}
 
 	policyInformer        cache.SharedIndexInformer
 	clusterPolicyInformer cache.SharedIndexInformer
-
-	// TODO: Add reference to admission control's policy evaluator
-	// policyEvaluator *admissioncontrol.PolicyEvaluator
 }
 
 // NewManager creates a new local policy informer manager for admission control
-func NewManager(dynamicClient dynamic.Interface /* TODO: add policyEvaluator */) *Manager {
+func NewManager(dynamicClient dynamic.Interface, admManager AdmissionManager) *Manager {
 	return &Manager{
 		dynamicClient: dynamicClient,
+		admManager:    admManager,
 		stopCh:        make(chan struct{}),
-		// policyEvaluator: policyEvaluator,
 	}
 }
 
@@ -390,20 +394,20 @@ func (m *Manager) handleClusterPolicyDelete(obj interface{}) {
 	log.Infof("Successfully removed ClusterStackroxPolicy %s from sensor", policy.Name)
 }
 
-// loadPolicyIntoEvaluator loads a policy into sensor's runtime evaluation engine
+// loadPolicyIntoEvaluator loads a policy into admission control's deploy-time evaluation engine
 func (m *Manager) loadPolicyIntoEvaluator(policy *storage.Policy) error {
-	// TODO: Integrate with sensor's policy evaluator
-	// m.policyEvaluator.AddPolicy(policy)
-	log.Debugf("Would load policy %s into sensor evaluator", policy.GetId())
-	return nil
+	if m.admManager == nil {
+		return fmt.Errorf("admission manager not initialized")
+	}
+	return m.admManager.AddLocalPolicy(policy)
 }
 
-// removePolicyFromEvaluator removes a policy from sensor's runtime evaluation engine
+// removePolicyFromEvaluator removes a policy from admission control's deploy-time evaluation engine
 func (m *Manager) removePolicyFromEvaluator(policyID string) error {
-	// TODO: Integrate with sensor's policy evaluator
-	// m.policyEvaluator.RemovePolicy(policyID)
-	log.Debugf("Would remove policy %s from sensor evaluator", policyID)
-	return nil
+	if m.admManager == nil {
+		return fmt.Errorf("admission manager not initialized")
+	}
+	return m.admManager.RemoveLocalPolicy(policyID)
 }
 
 // updateStatusSuccess updates the policy status with success condition
@@ -456,14 +460,8 @@ func (m *Manager) updateStatusError(policy *policyv1alpha1.StackroxPolicy, reaso
 }
 
 // updateStatus updates the policy status with the given condition
+// updateStatus updates the policy status with the given condition
 func (m *Manager) updateStatus(policy *policyv1alpha1.StackroxPolicy, condition metav1.Condition, localPolicyID string) {
-	// TODO: Use dynamic client to update status subresource
-	// For now, logging what would be updated
-	log.Infof("Would update StackroxPolicy %s/%s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
-		policy.Namespace, policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
-
-	// Example implementation (using dynamic client):
-	/*
 	ctx := context.Background()
 
 	// Clone policy to avoid modifying cache
@@ -496,14 +494,12 @@ func (m *Manager) updateStatus(policy *policyv1alpha1.StackroxPolicy, condition 
 		Namespace(policy.Namespace).
 		UpdateStatus(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
 	if err != nil {
-		if errors.IsConflict(err) {
-			// Retry on conflict
-			log.Warnf("Conflict updating status for %s/%s, will retry", policy.Namespace, policy.Name)
-		} else {
-			log.Errorf("Failed to update status for %s/%s: %v", policy.Namespace, policy.Name, err)
-		}
+		log.Errorf("Failed to update status for %s/%s: %v", policy.Namespace, policy.Name, err)
+		return
 	}
-	*/
+
+	log.Infof("Updated StackroxPolicy %s/%s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
+		policy.Namespace, policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
 }
 
 // updateClusterPolicyStatusSuccess updates the cluster policy status with success condition

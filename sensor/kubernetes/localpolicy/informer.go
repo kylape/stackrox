@@ -35,24 +35,28 @@ var (
 	}
 )
 
+// PolicyDetector is the interface for policy detection (avoid circular dependency)
+type PolicyDetector interface {
+	AddLocalPolicy(policy *storage.Policy) error
+	RemoveLocalPolicy(policyID string) error
+}
+
 // Manager manages local policy informers for sensor runtime evaluation
 type Manager struct {
 	dynamicClient dynamic.Interface
+	detector      PolicyDetector
 	stopCh        chan struct{}
 
 	policyInformer        cache.SharedIndexInformer
 	clusterPolicyInformer cache.SharedIndexInformer
-
-	// TODO: Add reference to sensor's policy evaluator
-	// policyEvaluator *detector.PolicyEvaluator
 }
 
 // NewManager creates a new local policy informer manager for sensor
-func NewManager(dynamicClient dynamic.Interface /* TODO: add policyEvaluator */) *Manager {
+func NewManager(dynamicClient dynamic.Interface, detector PolicyDetector) *Manager {
 	return &Manager{
 		dynamicClient: dynamicClient,
+		detector:      detector,
 		stopCh:        make(chan struct{}),
-		// policyEvaluator: policyEvaluator,
 	}
 }
 
@@ -392,18 +396,18 @@ func (m *Manager) handleClusterPolicyDelete(obj interface{}) {
 
 // loadPolicyIntoEvaluator loads a policy into sensor's runtime evaluation engine
 func (m *Manager) loadPolicyIntoEvaluator(policy *storage.Policy) error {
-	// TODO: Integrate with sensor's policy evaluator
-	// m.policyEvaluator.AddPolicy(policy)
-	log.Debugf("Would load policy %s into sensor evaluator", policy.GetId())
-	return nil
+	if m.detector == nil {
+		return fmt.Errorf("detector not initialized")
+	}
+	return m.detector.AddLocalPolicy(policy)
 }
 
 // removePolicyFromEvaluator removes a policy from sensor's runtime evaluation engine
 func (m *Manager) removePolicyFromEvaluator(policyID string) error {
-	// TODO: Integrate with sensor's policy evaluator
-	// m.policyEvaluator.RemovePolicy(policyID)
-	log.Debugf("Would remove policy %s from sensor evaluator", policyID)
-	return nil
+	if m.detector == nil {
+		return fmt.Errorf("detector not initialized")
+	}
+	return m.detector.RemoveLocalPolicy(policyID)
 }
 
 // updateStatusSuccess updates the policy status with success condition
@@ -457,13 +461,6 @@ func (m *Manager) updateStatusError(policy *policyv1alpha1.StackroxPolicy, reaso
 
 // updateStatus updates the policy status with the given condition
 func (m *Manager) updateStatus(policy *policyv1alpha1.StackroxPolicy, condition metav1.Condition, localPolicyID string) {
-	// TODO: Use dynamic client to update status subresource
-	// For now, logging what would be updated
-	log.Infof("Would update StackroxPolicy %s/%s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
-		policy.Namespace, policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
-
-	// Example implementation (using dynamic client):
-	/*
 	ctx := context.Background()
 
 	// Clone policy to avoid modifying cache
@@ -496,14 +493,12 @@ func (m *Manager) updateStatus(policy *policyv1alpha1.StackroxPolicy, condition 
 		Namespace(policy.Namespace).
 		UpdateStatus(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
 	if err != nil {
-		if errors.IsConflict(err) {
-			// Retry on conflict
-			log.Warnf("Conflict updating status for %s/%s, will retry", policy.Namespace, policy.Name)
-		} else {
-			log.Errorf("Failed to update status for %s/%s: %v", policy.Namespace, policy.Name, err)
-		}
+		log.Errorf("Failed to update status for %s/%s: %v", policy.Namespace, policy.Name, err)
+		return
 	}
-	*/
+
+	log.Infof("Updated StackroxPolicy %s/%s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
+		policy.Namespace, policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
 }
 
 // updateClusterPolicyStatusSuccess updates the cluster policy status with success condition
@@ -557,8 +552,41 @@ func (m *Manager) updateClusterPolicyStatusError(policy *policyv1alpha1.ClusterS
 
 // updateClusterPolicyStatus updates the cluster policy status with the given condition
 func (m *Manager) updateClusterPolicyStatus(policy *policyv1alpha1.ClusterStackroxPolicy, condition metav1.Condition, localPolicyID string) {
-	// TODO: Use dynamic client to update status subresource
-	// For now, logging what would be updated
-	log.Infof("Would update ClusterStackroxPolicy %s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
+	ctx := context.Background()
+
+	// Clone policy to avoid modifying cache
+	policyCopy := policy.DeepCopy()
+
+	// Update conditions
+	policyCopy.Status.Conditions = policyv1alpha1.SetCondition(
+		policyCopy.Status.Conditions,
+		condition,
+	)
+
+	// Set local policy ID if provided
+	if localPolicyID != "" {
+		policyCopy.Status.LocalPolicyID = localPolicyID
+	}
+
+	// Update last evaluated timestamp
+	now := metav1.Now()
+	policyCopy.Status.LastEvaluated = &now
+
+	// Convert to unstructured for dynamic client
+	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(policyCopy)
+	if err != nil {
+		log.Errorf("Failed to convert cluster policy to unstructured: %v", err)
+		return
+	}
+
+	// Update status subresource using dynamic client (cluster-scoped, no namespace)
+	_, err = m.dynamicClient.Resource(clusterStackroxPolicyGVR).
+		UpdateStatus(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
+	if err != nil {
+		log.Errorf("Failed to update status for ClusterStackroxPolicy %s: %v", policy.Name, err)
+		return
+	}
+
+	log.Infof("Updated ClusterStackroxPolicy %s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
 		policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
 }

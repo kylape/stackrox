@@ -441,3 +441,20 @@ func (m *manager) processUpdateResourceRequest(req *sensor.AdmCtrlUpdateResource
 func (m *manager) getDeploymentForPod(namespace, podName string) *storage.Deployment {
 	return m.deployments.Get(namespace, m.pods.GetDeploymentID(namespace, podName))
 }
+
+// AddLocalPolicy adds a local policy from a policy-as-code CRD
+// TODO: Implement full integration with deploytime detector
+func (m *manager) AddLocalPolicy(policy *storage.Policy) error {
+	log.Infof("AddLocalPolicy called for policy %s (ID: %s) - stub implementation", policy.GetName(), policy.GetId())
+	// TODO: Update m.deploytimeDetector with the new policy
+	// This requires modifying the state to include local policies
+	return nil
+}
+
+// RemoveLocalPolicy removes a local policy
+// TODO: Implement full integration with deploytime detector
+func (m *manager) RemoveLocalPolicy(policyID string) error {
+	log.Infof("RemoveLocalPolicy called for policy ID %s - stub implementation", policyID)
+	// TODO: Remove from m.deploytimeDetector
+	return nil
+}

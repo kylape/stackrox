@@ -96,7 +96,7 @@ func main() {
 		certLoader = centralclient.RemoteCertLoader(centralClient)
 	}
 
-	s, err := sensor.CreateSensor(sensor.ConfigWithDefaults().
+	result, err := sensor.CreateSensor(sensor.ConfigWithDefaults().
 		WithClusterIDHandler(clusterIDHandler).
 		WithK8sClient(sharedClientInterface).
 		WithCentralConnectionFactory(centralConnFactory).
@@ -105,8 +105,10 @@ func main() {
 		WithIntrospectionK8sClient(sharedClientInterfaceForFetchingPodOwnership))
 	utils.CrashOnError(err)
 
+	s := result.Sensor
+
 	// Create local policy informer manager for runtime policy evaluation
-	localPolicyManager := localpolicy.NewManager(sharedClientInterface.Dynamic())
+	localPolicyManager := localpolicy.NewManager(sharedClientInterface.Dynamic(), result.Detector)
 
 	s.Start()
 	gcp.Singleton().Start()

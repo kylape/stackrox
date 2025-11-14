@@ -64,8 +64,14 @@ import (
 
 var log = logging.LoggerForModule()
 
+// CreateSensorResult contains the created sensor and its detector
+type CreateSensorResult struct {
+	Sensor   *sensor.Sensor
+	Detector detector.Detector
+}
+
 // CreateSensor takes in a client interface and returns a sensor instantiation
-func CreateSensor(cfg *CreateOptions) (*sensor.Sensor, error) {
+func CreateSensor(cfg *CreateOptions) (*CreateSensorResult, error) {
 	log.Info("Running sensor with Kubernetes re-sync disabled")
 
 	clusterID := cfg.clusterIDHandler
@@ -249,5 +255,8 @@ func CreateSensor(cfg *CreateOptions) (*sensor.Sensor, error) {
 	apiServices = append(apiServices, certdistribution.NewService(clusterID, cfg.k8sClient.Kubernetes(), sensorNamespace))
 
 	s.AddAPIServices(apiServices...)
-	return s, nil
+	return &CreateSensorResult{
+		Sensor:   s,
+		Detector: policyDetector,
+	}, nil
 }
