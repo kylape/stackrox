@@ -79,8 +79,8 @@ func ToStoragePolicy(spec *StackroxPolicySpec, namespace, name string, isCluster
 		Scope:      convertScopes(spec.Scope, isClusterScoped),
 		Exclusions: convertExclusions(spec.Exclusions),
 
-		// Policy version (for tracking changes)
-		PolicyVersion: "1.0",
+		// Policy version (must be 1.1 for runtime policies)
+		PolicyVersion: "1.1",
 
 		// Local policies are always considered "custom" (not default)
 		IsDefault: false,
