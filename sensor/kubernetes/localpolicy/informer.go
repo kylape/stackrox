@@ -9,6 +9,7 @@ import (
 	policyv1alpha1 "github.com/stackrox/rox/apis/policy.stackrox.io/v1alpha1"
 	"github.com/stackrox/rox/generated/storage"
 	"github.com/stackrox/rox/pkg/logging"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,6 +35,11 @@ var (
 		Version:  "v1alpha1",
 		Resource: "clusterstackroxpolicies",
 	}
+)
+
+const (
+	// maxStatusUpdateRetries is the maximum number of retries for status updates on optimistic concurrency conflicts
+	maxStatusUpdateRetries = 5
 )
 
 // PolicyDetector is the interface for policy detection (avoid circular dependency)
@@ -544,45 +550,79 @@ func (m *Manager) updateStatusError(policy *policyv1alpha1.StackroxPolicy, reaso
 }
 
 // updateStatus updates the policy status with the given condition
+// Retries on optimistic concurrency conflicts by fetching fresh object and reapplying changes
 func (m *Manager) updateStatus(policy *policyv1alpha1.StackroxPolicy, condition metav1.Condition, localPolicyID string) {
 	ctx := context.Background()
 
-	// Clone policy to avoid modifying cache
-	policyCopy := policy.DeepCopy()
+	// Retry loop for optimistic concurrency conflicts
+	for retryCount := 0; retryCount < maxStatusUpdateRetries; retryCount++ {
+		// Fetch fresh copy from API server to get latest resourceVersion
+		unstructuredObj, err := m.dynamicClient.Resource(stackroxPolicyGVR).
+			Namespace(policy.Namespace).
+			Get(ctx, policy.Name, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				log.Debugf("Policy %s/%s not found, possibly deleted", policy.Namespace, policy.Name)
+				return
+			}
+			log.Errorf("Failed to get policy %s/%s for status update: %v", policy.Namespace, policy.Name, err)
+			return
+		}
 
-	// Update conditions
-	policyCopy.Status.Conditions = policyv1alpha1.SetCondition(
-		policyCopy.Status.Conditions,
-		condition,
-	)
+		// Convert to typed policy to manipulate status
+		policyCopy := &policyv1alpha1.StackroxPolicy{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, policyCopy); err != nil {
+			log.Errorf("Failed to convert unstructured to StackroxPolicy: %v", err)
+			return
+		}
 
-	// Set local policy ID if provided
-	if localPolicyID != "" {
-		policyCopy.Status.LocalPolicyID = localPolicyID
-	}
+		// Update conditions
+		policyCopy.Status.Conditions = policyv1alpha1.SetCondition(
+			policyCopy.Status.Conditions,
+			condition,
+		)
 
-	// Update last evaluated timestamp
-	now := metav1.Now()
-	policyCopy.Status.LastEvaluated = &now
+		// Set local policy ID if provided
+		if localPolicyID != "" {
+			policyCopy.Status.LocalPolicyID = localPolicyID
+		}
 
-	// Convert to unstructured for dynamic client
-	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(policyCopy)
-	if err != nil {
-		log.Errorf("Failed to convert policy to unstructured: %v", err)
+		// Update last evaluated timestamp
+		now := metav1.Now()
+		policyCopy.Status.LastEvaluated = &now
+
+		// Convert back to unstructured for dynamic client
+		unstructuredUpdated, err := runtime.DefaultUnstructuredConverter.ToUnstructured(policyCopy)
+		if err != nil {
+			log.Errorf("Failed to convert policy to unstructured: %v", err)
+			return
+		}
+
+		// Try to update status subresource
+		_, err = m.dynamicClient.Resource(stackroxPolicyGVR).
+			Namespace(policy.Namespace).
+			UpdateStatus(ctx, &unstructured.Unstructured{Object: unstructuredUpdated}, metav1.UpdateOptions{})
+		if err != nil {
+			if k8serrors.IsConflict(err) {
+				log.Debugf("Conflict updating status for %s/%s (retry %d/%d): %v",
+					policy.Namespace, policy.Name, retryCount+1, maxStatusUpdateRetries, err)
+				// Exponential backoff
+				time.Sleep(time.Duration(retryCount+1) * 100 * time.Millisecond)
+				continue
+			}
+			log.Errorf("Failed to update status for %s/%s: %v", policy.Namespace, policy.Name, err)
+			return
+		}
+
+		// Success!
+		log.Infof("Updated StackroxPolicy %s/%s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
+			policy.Namespace, policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
 		return
 	}
 
-	// Update status subresource using dynamic client
-	_, err = m.dynamicClient.Resource(stackroxPolicyGVR).
-		Namespace(policy.Namespace).
-		UpdateStatus(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
-	if err != nil {
-		log.Errorf("Failed to update status for %s/%s: %v", policy.Namespace, policy.Name, err)
-		return
-	}
-
-	log.Infof("Updated StackroxPolicy %s/%s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
-		policy.Namespace, policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
+	// Exhausted retries
+	log.Errorf("Failed to update status for %s/%s after %d retries due to conflicts",
+		policy.Namespace, policy.Name, maxStatusUpdateRetries)
 }
 
 // updateClusterPolicyStatusSuccess updates the cluster policy status with success condition
@@ -635,44 +675,77 @@ func (m *Manager) updateClusterPolicyStatusError(policy *policyv1alpha1.ClusterS
 }
 
 // updateClusterPolicyStatus updates the cluster policy status with the given condition
+// Retries on optimistic concurrency conflicts by fetching fresh object and reapplying changes
 func (m *Manager) updateClusterPolicyStatus(policy *policyv1alpha1.ClusterStackroxPolicy, condition metav1.Condition, localPolicyID string) {
 	ctx := context.Background()
 
-	// Clone policy to avoid modifying cache
-	policyCopy := policy.DeepCopy()
+	// Retry loop for optimistic concurrency conflicts
+	for retryCount := 0; retryCount < maxStatusUpdateRetries; retryCount++ {
+		// Fetch fresh copy from API server to get latest resourceVersion
+		unstructuredObj, err := m.dynamicClient.Resource(clusterStackroxPolicyGVR).
+			Get(ctx, policy.Name, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				log.Debugf("ClusterStackroxPolicy %s not found, possibly deleted", policy.Name)
+				return
+			}
+			log.Errorf("Failed to get ClusterStackroxPolicy %s for status update: %v", policy.Name, err)
+			return
+		}
 
-	// Update conditions
-	policyCopy.Status.Conditions = policyv1alpha1.SetCondition(
-		policyCopy.Status.Conditions,
-		condition,
-	)
+		// Convert to typed policy to manipulate status
+		policyCopy := &policyv1alpha1.ClusterStackroxPolicy{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, policyCopy); err != nil {
+			log.Errorf("Failed to convert unstructured to ClusterStackroxPolicy: %v", err)
+			return
+		}
 
-	// Set local policy ID if provided
-	if localPolicyID != "" {
-		policyCopy.Status.LocalPolicyID = localPolicyID
-	}
+		// Update conditions
+		policyCopy.Status.Conditions = policyv1alpha1.SetCondition(
+			policyCopy.Status.Conditions,
+			condition,
+		)
 
-	// Update last evaluated timestamp
-	now := metav1.Now()
-	policyCopy.Status.LastEvaluated = &now
+		// Set local policy ID if provided
+		if localPolicyID != "" {
+			policyCopy.Status.LocalPolicyID = localPolicyID
+		}
 
-	// Convert to unstructured for dynamic client
-	unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(policyCopy)
-	if err != nil {
-		log.Errorf("Failed to convert cluster policy to unstructured: %v", err)
+		// Update last evaluated timestamp
+		now := metav1.Now()
+		policyCopy.Status.LastEvaluated = &now
+
+		// Convert back to unstructured for dynamic client
+		unstructuredUpdated, err := runtime.DefaultUnstructuredConverter.ToUnstructured(policyCopy)
+		if err != nil {
+			log.Errorf("Failed to convert cluster policy to unstructured: %v", err)
+			return
+		}
+
+		// Try to update status subresource (cluster-scoped, no namespace)
+		_, err = m.dynamicClient.Resource(clusterStackroxPolicyGVR).
+			UpdateStatus(ctx, &unstructured.Unstructured{Object: unstructuredUpdated}, metav1.UpdateOptions{})
+		if err != nil {
+			if k8serrors.IsConflict(err) {
+				log.Debugf("Conflict updating status for ClusterStackroxPolicy %s (retry %d/%d): %v",
+					policy.Name, retryCount+1, maxStatusUpdateRetries, err)
+				// Exponential backoff
+				time.Sleep(time.Duration(retryCount+1) * 100 * time.Millisecond)
+				continue
+			}
+			log.Errorf("Failed to update status for ClusterStackroxPolicy %s: %v", policy.Name, err)
+			return
+		}
+
+		// Success!
+		log.Infof("Updated ClusterStackroxPolicy %s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
+			policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
 		return
 	}
 
-	// Update status subresource using dynamic client (cluster-scoped, no namespace)
-	_, err = m.dynamicClient.Resource(clusterStackroxPolicyGVR).
-		UpdateStatus(ctx, &unstructured.Unstructured{Object: unstructuredObj}, metav1.UpdateOptions{})
-	if err != nil {
-		log.Errorf("Failed to update status for ClusterStackroxPolicy %s: %v", policy.Name, err)
-		return
-	}
-
-	log.Infof("Updated ClusterStackroxPolicy %s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
-		policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
+	// Exhausted retries
+	log.Errorf("Failed to update status for ClusterStackroxPolicy %s after %d retries due to conflicts",
+		policy.Name, maxStatusUpdateRetries)
 }
 
 // storePolicyRef stores the CRD reference for a local policy ID
@@ -732,6 +805,7 @@ func (m *Manager) flushViolationMetrics() {
 }
 
 // updateViolationMetrics updates a single policy's violation metrics in CRD status
+// Retries on optimistic concurrency conflicts
 func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, ref *policyRef, metrics *violationMetrics) error {
 	var gvr schema.GroupVersionResource
 	var namespace string
@@ -744,98 +818,116 @@ func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, r
 		namespace = ref.namespace
 	}
 
-	// Fetch current policy
-	var unstructuredObj *unstructured.Unstructured
-	var err error
+	// Retry loop for optimistic concurrency conflicts
+	for retryCount := 0; retryCount < maxStatusUpdateRetries; retryCount++ {
+		// Fetch current policy to get latest resourceVersion
+		var unstructuredObj *unstructured.Unstructured
+		var err error
 
-	if ref.isClusterScoped {
-		unstructuredObj, err = m.dynamicClient.Resource(gvr).Get(ctx, ref.name, metav1.GetOptions{})
-	} else {
-		unstructuredObj, err = m.dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, ref.name, metav1.GetOptions{})
-	}
+		if ref.isClusterScoped {
+			unstructuredObj, err = m.dynamicClient.Resource(gvr).Get(ctx, ref.name, metav1.GetOptions{})
+		} else {
+			unstructuredObj, err = m.dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, ref.name, metav1.GetOptions{})
+		}
 
-	if err != nil {
-		return fmt.Errorf("failed to get policy %s/%s: %w", namespace, ref.name, err)
-	}
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				log.Debugf("Policy %s/%s not found, possibly deleted", namespace, ref.name)
+				return nil
+			}
+			return fmt.Errorf("failed to get policy %s/%s: %w", namespace, ref.name, err)
+		}
 
-	// Extract current status
-	status, exists, err := unstructured.NestedMap(unstructuredObj.Object, "status")
-	if err != nil {
-		return fmt.Errorf("failed to get status: %w", err)
-	}
-	if !exists {
-		status = make(map[string]interface{})
-	}
+		// Extract current status
+		status, exists, err := unstructured.NestedMap(unstructuredObj.Object, "status")
+		if err != nil {
+			return fmt.Errorf("failed to get status: %w", err)
+		}
+		if !exists {
+			status = make(map[string]interface{})
+		}
 
-	// Get existing violation metrics or create new
-	existingMetrics, _, _ := unstructured.NestedMap(status, "violationMetrics")
-	if existingMetrics == nil {
-		existingMetrics = make(map[string]interface{})
-	}
+		// Get existing violation metrics or create new
+		existingMetrics, _, _ := unstructured.NestedMap(status, "violationMetrics")
+		if existingMetrics == nil {
+			existingMetrics = make(map[string]interface{})
+		}
 
-	// Accumulate metrics (add to existing counts)
-	var totalViolations int32
-	if existing, ok := existingMetrics["totalViolations"].(int64); ok {
-		totalViolations = int32(existing)
-	}
-	totalViolations += metrics.totalViolations
+		// Accumulate metrics (add to existing counts)
+		var totalViolations int32
+		if existing, ok := existingMetrics["totalViolations"].(int64); ok {
+			totalViolations = int32(existing)
+		}
+		totalViolations += metrics.totalViolations
 
-	// Update violation metrics
-	violationMetrics := map[string]interface{}{
-		"totalViolations":   int64(totalViolations),
-		"lastViolationTime": metrics.lastViolationTime.Format(time.RFC3339),
-	}
+		// Update violation metrics
+		violationMetrics := map[string]interface{}{
+			"totalViolations":   int64(totalViolations),
+			"lastViolationTime": metrics.lastViolationTime.Format(time.RFC3339),
+		}
 
-	// Merge namespace violation counts
-	existingByNs, _, _ := unstructured.NestedStringMap(existingMetrics, "violationsByNamespace")
-	if existingByNs == nil {
-		existingByNs = make(map[string]string)
-	}
+		// Merge namespace violation counts
+		existingByNs, _, _ := unstructured.NestedStringMap(existingMetrics, "violationsByNamespace")
+		if existingByNs == nil {
+			existingByNs = make(map[string]string)
+		}
 
-	updatedByNs := make(map[string]string)
-	for ns, count := range metrics.violationsByNamespace {
-		existingCount := int32(0)
-		if val, ok := existingByNs[ns]; ok {
-			if parsed, err := fmt.Sscanf(val, "%d", &existingCount); err == nil && parsed == 1 {
-				// parsed successfully
+		updatedByNs := make(map[string]string)
+		for ns, count := range metrics.violationsByNamespace {
+			existingCount := int32(0)
+			if val, ok := existingByNs[ns]; ok {
+				if parsed, err := fmt.Sscanf(val, "%d", &existingCount); err == nil && parsed == 1 {
+					// parsed successfully
+				}
+			}
+			updatedByNs[ns] = fmt.Sprintf("%d", existingCount+count)
+		}
+
+		// Also include namespaces that were in existing but not in new metrics
+		for ns, val := range existingByNs {
+			if _, exists := updatedByNs[ns]; !exists {
+				updatedByNs[ns] = val
 			}
 		}
-		updatedByNs[ns] = fmt.Sprintf("%d", existingCount+count)
-	}
 
-	// Also include namespaces that were in existing but not in new metrics
-	for ns, val := range existingByNs {
-		if _, exists := updatedByNs[ns]; !exists {
-			updatedByNs[ns] = val
+		if len(updatedByNs) > 0 {
+			violationMetrics["violationsByNamespace"] = updatedByNs
 		}
+
+		// Update status
+		if err := unstructured.SetNestedMap(status, violationMetrics, "violationMetrics"); err != nil {
+			return fmt.Errorf("failed to set violation metrics: %w", err)
+		}
+
+		if err := unstructured.SetNestedMap(unstructuredObj.Object, status, "status"); err != nil {
+			return fmt.Errorf("failed to set status: %w", err)
+		}
+
+		// Try to update CRD status
+		if ref.isClusterScoped {
+			_, err = m.dynamicClient.Resource(gvr).UpdateStatus(ctx, unstructuredObj, metav1.UpdateOptions{})
+		} else {
+			_, err = m.dynamicClient.Resource(gvr).Namespace(namespace).UpdateStatus(ctx, unstructuredObj, metav1.UpdateOptions{})
+		}
+
+		if err != nil {
+			if k8serrors.IsConflict(err) {
+				log.Debugf("Conflict updating violation metrics for policy %s/%s (retry %d/%d): %v",
+					namespace, ref.name, retryCount+1, maxStatusUpdateRetries, err)
+				// Exponential backoff
+				time.Sleep(time.Duration(retryCount+1) * 100 * time.Millisecond)
+				continue
+			}
+			return fmt.Errorf("failed to update status: %w", err)
+		}
+
+		// Success!
+		log.Infof("Updated violation metrics for policy %s (total: %d, new: %d)",
+			policyID, totalViolations, metrics.totalViolations)
+		return nil
 	}
 
-	if len(updatedByNs) > 0 {
-		violationMetrics["violationsByNamespace"] = updatedByNs
-	}
-
-	// Update status
-	if err := unstructured.SetNestedMap(status, violationMetrics, "violationMetrics"); err != nil {
-		return fmt.Errorf("failed to set violation metrics: %w", err)
-	}
-
-	if err := unstructured.SetNestedMap(unstructuredObj.Object, status, "status"); err != nil {
-		return fmt.Errorf("failed to set status: %w", err)
-	}
-
-	// Update CRD status
-	if ref.isClusterScoped {
-		_, err = m.dynamicClient.Resource(gvr).UpdateStatus(ctx, unstructuredObj, metav1.UpdateOptions{})
-	} else {
-		_, err = m.dynamicClient.Resource(gvr).Namespace(namespace).UpdateStatus(ctx, unstructuredObj, metav1.UpdateOptions{})
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to update status: %w", err)
-	}
-
-	log.Infof("Updated violation metrics for policy %s (total: %d, new: %d)",
-		policyID, totalViolations, metrics.totalViolations)
-
-	return nil
+	// Exhausted retries
+	return fmt.Errorf("failed to update violation metrics for policy %s/%s after %d retries due to conflicts",
+		namespace, ref.name, maxStatusUpdateRetries)
 }
