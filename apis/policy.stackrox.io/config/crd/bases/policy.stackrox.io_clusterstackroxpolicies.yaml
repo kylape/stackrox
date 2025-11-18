@@ -606,6 +606,29 @@ spec:
                   LocalPolicyID is the ID generated locally for this policy
                   This ID is used by sensor for policy evaluation and alert generation
                 type: string
+              violationMetrics:
+                description: |-
+                  ViolationMetrics tracks violations detected by this policy
+                  Updated periodically as violations occur
+                properties:
+                  lastViolationTime:
+                    description: LastViolationTime is the timestamp of the most recent
+                      violation
+                    format: date-time
+                    type: string
+                  totalViolations:
+                    description: TotalViolations is the cumulative count of all violations
+                      detected
+                    format: int32
+                    type: integer
+                  violationsByNamespace:
+                    additionalProperties:
+                      format: int32
+                      type: integer
+                    description: ViolationsByNamespace tracks violation counts per
+                      namespace
+                    type: object
+                type: object
             type: object
         type: object
     served: true

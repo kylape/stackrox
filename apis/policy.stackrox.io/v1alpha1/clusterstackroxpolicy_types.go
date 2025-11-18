@@ -39,6 +39,11 @@ type ClusterStackroxPolicyStatus struct {
 	// LastEvaluated is the timestamp of the last policy evaluation
 	// +optional
 	LastEvaluated *metav1.Time `json:"lastEvaluated,omitempty"`
+
+	// ViolationMetrics tracks violations detected by this policy
+	// Updated periodically as violations occur
+	// +optional
+	ViolationMetrics *PolicyViolationMetrics `json:"violationMetrics,omitempty"`
 }
 
 // +kubebuilder:object:root=true

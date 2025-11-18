@@ -95,6 +95,21 @@ type StackroxPolicySpec struct {
 	MitreAttackVectors []commonv1.MitreAttackVectors `json:"mitreAttackVectors,omitempty"`
 }
 
+// PolicyViolationMetrics tracks violations detected for this policy
+type PolicyViolationMetrics struct {
+	// TotalViolations is the cumulative count of all violations detected
+	// +optional
+	TotalViolations int32 `json:"totalViolations,omitempty"`
+
+	// LastViolationTime is the timestamp of the most recent violation
+	// +optional
+	LastViolationTime *metav1.Time `json:"lastViolationTime,omitempty"`
+
+	// ViolationsByNamespace tracks violation counts per namespace
+	// +optional
+	ViolationsByNamespace map[string]int32 `json:"violationsByNamespace,omitempty"`
+}
+
 // StackroxPolicyStatus defines the observed state of StackroxPolicy
 type StackroxPolicyStatus struct {
 	// Conditions represent the latest available observations of the policy's state
@@ -109,6 +124,11 @@ type StackroxPolicyStatus struct {
 	// LastEvaluated is the timestamp of the last policy evaluation
 	// +optional
 	LastEvaluated *metav1.Time `json:"lastEvaluated,omitempty"`
+
+	// ViolationMetrics tracks violations detected by this policy
+	// Updated periodically as violations occur
+	// +optional
+	ViolationMetrics *PolicyViolationMetrics `json:"violationMetrics,omitempty"`
 }
 
 // +kubebuilder:object:root=true
