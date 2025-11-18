@@ -110,6 +110,9 @@ func main() {
 	// Create local policy informer manager for runtime policy evaluation
 	localPolicyManager := localpolicy.NewManager(sharedClientInterface.Dynamic(), result.Detector)
 
+	// Wire up violation tracking: detector will call localPolicyManager.RecordViolation when alerts fire
+	result.Detector.SetViolationRecorder(localPolicyManager)
+
 	s.Start()
 	gcp.Singleton().Start()
 

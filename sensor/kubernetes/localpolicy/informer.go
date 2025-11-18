@@ -3,6 +3,7 @@ package localpolicy
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	policyv1alpha1 "github.com/stackrox/rox/apis/policy.stackrox.io/v1alpha1"
@@ -41,6 +42,20 @@ type PolicyDetector interface {
 	RemoveLocalPolicy(policyID string) error
 }
 
+// violationMetrics tracks accumulated violations for a policy
+type violationMetrics struct {
+	totalViolations       int32
+	lastViolationTime     time.Time
+	violationsByNamespace map[string]int32
+}
+
+// policyRef tracks CRD reference for a local policy
+type policyRef struct {
+	namespace   string // Empty for cluster-scoped
+	name        string
+	isClusterScoped bool
+}
+
 // Manager manages local policy informers for sensor runtime evaluation
 type Manager struct {
 	dynamicClient dynamic.Interface
@@ -49,15 +64,48 @@ type Manager struct {
 
 	policyInformer        cache.SharedIndexInformer
 	clusterPolicyInformer cache.SharedIndexInformer
+
+	// Violation tracking
+	violationsMu      sync.Mutex
+	pendingViolations map[string]*violationMetrics // policyID -> metrics
+	policyRefs        map[string]*policyRef        // policyID -> CRD reference
+	updateTicker      *time.Ticker
 }
 
 // NewManager creates a new local policy informer manager for sensor
 func NewManager(dynamicClient dynamic.Interface, detector PolicyDetector) *Manager {
 	return &Manager{
-		dynamicClient: dynamicClient,
-		detector:      detector,
-		stopCh:        make(chan struct{}),
+		dynamicClient:     dynamicClient,
+		detector:          detector,
+		stopCh:            make(chan struct{}),
+		pendingViolations: make(map[string]*violationMetrics),
+		policyRefs:        make(map[string]*policyRef),
+		updateTicker:      time.NewTicker(30 * time.Second), // Batch updates every 30 seconds
 	}
+}
+
+// RecordViolation is called by the detector when a local policy violation occurs
+// This implements the detector.ViolationRecorder interface
+func (m *Manager) RecordViolation(policyID string, namespace string, timestamp time.Time) {
+	m.violationsMu.Lock()
+	defer m.violationsMu.Unlock()
+
+	metrics, exists := m.pendingViolations[policyID]
+	if !exists {
+		metrics = &violationMetrics{
+			violationsByNamespace: make(map[string]int32),
+		}
+		m.pendingViolations[policyID] = metrics
+	}
+
+	metrics.totalViolations++
+	metrics.lastViolationTime = timestamp
+	if namespace != "" {
+		metrics.violationsByNamespace[namespace]++
+	}
+
+	log.Debugf("Recorded violation for local policy %s in namespace %s (total: %d)",
+		policyID, namespace, metrics.totalViolations)
 }
 
 // Start begins watching StackroxPolicy and ClusterStackroxPolicy CRs
@@ -106,8 +154,24 @@ func (m *Manager) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to sync ClusterStackroxPolicy cache")
 	}
 
+	// Start periodic violation metrics update goroutine
+	go m.runPeriodicUpdates()
+
 	log.Info("Local policy informers started successfully")
 	return nil
+}
+
+// runPeriodicUpdates runs in a goroutine and periodically flushes violation metrics to CRD status
+func (m *Manager) runPeriodicUpdates() {
+	for {
+		select {
+		case <-m.stopCh:
+			m.updateTicker.Stop()
+			return
+		case <-m.updateTicker.C:
+			m.flushViolationMetrics()
+		}
+	}
 }
 
 // Stop halts the informers
@@ -162,6 +226,13 @@ func (m *Manager) handlePolicyAdd(obj interface{}) {
 		m.updateStatusError(policy, policyv1alpha1.ReasonInternalError, err)
 		return
 	}
+
+	// Store CRD reference for violation tracking
+	m.storePolicyRef(storagePolicy.GetId(), &policyRef{
+		namespace:       policy.Namespace,
+		name:            policy.Name,
+		isClusterScoped: false,
+	})
 
 	// Update status - success
 	log.Infof("Successfully loaded StackroxPolicy %s/%s into sensor (ID: %s)",
@@ -253,6 +324,9 @@ func (m *Manager) handlePolicyDelete(obj interface{}) {
 		return
 	}
 
+	// Remove policy reference for violation tracking
+	m.removePolicyRef(policy.Status.LocalPolicyID)
+
 	log.Infof("Successfully removed StackroxPolicy %s/%s from sensor",
 		policy.Namespace, policy.Name)
 }
@@ -303,6 +377,13 @@ func (m *Manager) handleClusterPolicyAdd(obj interface{}) {
 		m.updateClusterPolicyStatusError(policy, policyv1alpha1.ReasonInternalError, err)
 		return
 	}
+
+	// Store CRD reference for violation tracking
+	m.storePolicyRef(storagePolicy.GetId(), &policyRef{
+		namespace:       "", // cluster-scoped
+		name:            policy.Name,
+		isClusterScoped: true,
+	})
 
 	log.Infof("Successfully loaded ClusterStackroxPolicy %s into sensor (ID: %s)",
 		policy.Name, storagePolicy.GetId())
@@ -390,6 +471,9 @@ func (m *Manager) handleClusterPolicyDelete(obj interface{}) {
 			policy.Status.LocalPolicyID, err)
 		return
 	}
+
+	// Remove policy reference for violation tracking
+	m.removePolicyRef(policy.Status.LocalPolicyID)
 
 	log.Infof("Successfully removed ClusterStackroxPolicy %s from sensor", policy.Name)
 }
@@ -589,4 +673,169 @@ func (m *Manager) updateClusterPolicyStatus(policy *policyv1alpha1.ClusterStackr
 
 	log.Infof("Updated ClusterStackroxPolicy %s status: Type=%s, Status=%s, Reason=%s, LocalID=%s",
 		policy.Name, condition.Type, condition.Status, condition.Reason, localPolicyID)
+}
+
+// storePolicyRef stores the CRD reference for a local policy ID
+func (m *Manager) storePolicyRef(policyID string, ref *policyRef) {
+	m.violationsMu.Lock()
+	defer m.violationsMu.Unlock()
+	m.policyRefs[policyID] = ref
+}
+
+// removePolicyRef removes the CRD reference for a local policy ID
+func (m *Manager) removePolicyRef(policyID string) {
+	m.violationsMu.Lock()
+	defer m.violationsMu.Unlock()
+	delete(m.policyRefs, policyID)
+	delete(m.pendingViolations, policyID) // Also clear any pending violations
+}
+
+// flushViolationMetrics updates CRD status with accumulated violation metrics
+func (m *Manager) flushViolationMetrics() {
+	m.violationsMu.Lock()
+
+	// Copy pending violations and clear them
+	violations := make(map[string]*violationMetrics)
+	for policyID, metrics := range m.pendingViolations {
+		violations[policyID] = metrics
+	}
+	m.pendingViolations = make(map[string]*violationMetrics)
+
+	// Copy policy refs for lookup
+	refs := make(map[string]*policyRef)
+	for policyID, ref := range m.policyRefs {
+		refs[policyID] = ref
+	}
+
+	m.violationsMu.Unlock()
+
+	if len(violations) == 0 {
+		return
+	}
+
+	log.Debugf("Flushing violation metrics for %d policies", len(violations))
+
+	ctx := context.Background()
+
+	// Update each policy's CRD status
+	for policyID, metrics := range violations {
+		ref, exists := refs[policyID]
+		if !exists {
+			log.Warnf("No CRD reference found for policy %s, skipping metrics update", policyID)
+			continue
+		}
+
+		if err := m.updateViolationMetrics(ctx, policyID, ref, metrics); err != nil {
+			log.Errorf("Failed to update violation metrics for policy %s: %v", policyID, err)
+		}
+	}
+}
+
+// updateViolationMetrics updates a single policy's violation metrics in CRD status
+func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, ref *policyRef, metrics *violationMetrics) error {
+	var gvr schema.GroupVersionResource
+	var namespace string
+
+	if ref.isClusterScoped {
+		gvr = clusterStackroxPolicyGVR
+		namespace = "" // cluster-scoped
+	} else {
+		gvr = stackroxPolicyGVR
+		namespace = ref.namespace
+	}
+
+	// Fetch current policy
+	var unstructuredObj *unstructured.Unstructured
+	var err error
+
+	if ref.isClusterScoped {
+		unstructuredObj, err = m.dynamicClient.Resource(gvr).Get(ctx, ref.name, metav1.GetOptions{})
+	} else {
+		unstructuredObj, err = m.dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, ref.name, metav1.GetOptions{})
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to get policy %s/%s: %w", namespace, ref.name, err)
+	}
+
+	// Extract current status
+	status, exists, err := unstructured.NestedMap(unstructuredObj.Object, "status")
+	if err != nil {
+		return fmt.Errorf("failed to get status: %w", err)
+	}
+	if !exists {
+		status = make(map[string]interface{})
+	}
+
+	// Get existing violation metrics or create new
+	existingMetrics, _, _ := unstructured.NestedMap(status, "violationMetrics")
+	if existingMetrics == nil {
+		existingMetrics = make(map[string]interface{})
+	}
+
+	// Accumulate metrics (add to existing counts)
+	var totalViolations int32
+	if existing, ok := existingMetrics["totalViolations"].(int64); ok {
+		totalViolations = int32(existing)
+	}
+	totalViolations += metrics.totalViolations
+
+	// Update violation metrics
+	violationMetrics := map[string]interface{}{
+		"totalViolations":   int64(totalViolations),
+		"lastViolationTime": metrics.lastViolationTime.Format(time.RFC3339),
+	}
+
+	// Merge namespace violation counts
+	existingByNs, _, _ := unstructured.NestedStringMap(existingMetrics, "violationsByNamespace")
+	if existingByNs == nil {
+		existingByNs = make(map[string]string)
+	}
+
+	updatedByNs := make(map[string]string)
+	for ns, count := range metrics.violationsByNamespace {
+		existingCount := int32(0)
+		if val, ok := existingByNs[ns]; ok {
+			if parsed, err := fmt.Sscanf(val, "%d", &existingCount); err == nil && parsed == 1 {
+				// parsed successfully
+			}
+		}
+		updatedByNs[ns] = fmt.Sprintf("%d", existingCount+count)
+	}
+
+	// Also include namespaces that were in existing but not in new metrics
+	for ns, val := range existingByNs {
+		if _, exists := updatedByNs[ns]; !exists {
+			updatedByNs[ns] = val
+		}
+	}
+
+	if len(updatedByNs) > 0 {
+		violationMetrics["violationsByNamespace"] = updatedByNs
+	}
+
+	// Update status
+	if err := unstructured.SetNestedMap(status, violationMetrics, "violationMetrics"); err != nil {
+		return fmt.Errorf("failed to set violation metrics: %w", err)
+	}
+
+	if err := unstructured.SetNestedMap(unstructuredObj.Object, status, "status"); err != nil {
+		return fmt.Errorf("failed to set status: %w", err)
+	}
+
+	// Update CRD status
+	if ref.isClusterScoped {
+		_, err = m.dynamicClient.Resource(gvr).UpdateStatus(ctx, unstructuredObj, metav1.UpdateOptions{})
+	} else {
+		_, err = m.dynamicClient.Resource(gvr).Namespace(namespace).UpdateStatus(ctx, unstructuredObj, metav1.UpdateOptions{})
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to update status: %w", err)
+	}
+
+	log.Infof("Updated violation metrics for policy %s (total: %d, new: %d)",
+		policyID, totalViolations, metrics.totalViolations)
+
+	return nil
 }

@@ -52,6 +52,12 @@ var (
 	externalEntityNotFoundErr = errors.Wrap(errox.NotFound, "external entity")
 )
 
+// ViolationRecorder is the interface for recording local policy violations
+// This allows the localpolicy informer to track violation metrics
+type ViolationRecorder interface {
+	RecordViolation(policyID string, namespace string, timestamp time.Time)
+}
+
 // Detector is the sensor component that syncs policies from Central and runs detection
 //
 //go:generate mockgen-wrapper
@@ -70,6 +76,7 @@ type Detector interface {
 	// Local policy management for policy-as-code CRDs
 	AddLocalPolicy(policy *storage.Policy) error
 	RemoveLocalPolicy(policyID string) error
+	SetViolationRecorder(recorder ViolationRecorder)
 }
 
 // New returns a new detector
@@ -176,6 +183,10 @@ type detectorImpl struct {
 	networkFlowsQueue *queue.Queue[*queue.FlowQueueItem]
 	indicatorsQueue   *queue.Queue[*queue.IndicatorQueueItem]
 	deploymentsQueue  queue.SimpleQueue[*queue.DeploymentQueueItem]
+
+	// Local policy violation tracking
+	violationRecorder ViolationRecorder
+	recorderMu        sync.RWMutex
 }
 
 func (d *detectorImpl) Name() string {
@@ -381,6 +392,25 @@ func (d *detectorImpl) RemoveLocalPolicy(policyID string) error {
 	return nil
 }
 
+// SetViolationRecorder sets the violation recorder for local policy metrics tracking
+func (d *detectorImpl) SetViolationRecorder(recorder ViolationRecorder) {
+	d.recorderMu.Lock()
+	defer d.recorderMu.Unlock()
+	d.violationRecorder = recorder
+	log.Info("Violation recorder set for local policy metrics tracking")
+}
+
+// recordViolation records a local policy violation for metrics tracking
+func (d *detectorImpl) recordViolation(policyID string, namespace string) {
+	d.recorderMu.RLock()
+	recorder := d.violationRecorder
+	d.recorderMu.RUnlock()
+
+	if recorder != nil {
+		recorder.RecordViolation(policyID, namespace, time.Now())
+	}
+}
+
 // ProcessReprocessDeployments marks all deployments to be reprocessed
 func (d *detectorImpl) ProcessReprocessDeployments() error {
 	log.Debug("Reprocess deployments triggered. Clearing cache and deduper")
@@ -431,6 +461,13 @@ func (d *detectorImpl) runDetector() {
 			sort.Slice(alerts, func(i, j int) bool {
 				return alerts[i].GetPolicy().GetId() < alerts[j].GetPolicy().GetId()
 			})
+
+			// Record violations for local policies (policy-as-code)
+			for _, alert := range alerts {
+				if alert.GetPolicy().GetSource() == storage.PolicySource_LOCAL {
+					d.recordViolation(alert.GetPolicy().GetId(), scanOutput.deployment.GetNamespace())
+				}
+			}
 
 			select {
 			case <-d.detectorStopper.Flow().StopRequested():
@@ -664,6 +701,13 @@ func (d *detectorImpl) processIndicator() {
 				Stage:        storage.LifecycleStage_RUNTIME,
 			}
 
+			// Record violations for local policies (policy-as-code)
+			for _, alert := range alerts {
+				if alert.GetPolicy().GetSource() == storage.PolicySource_LOCAL {
+					d.recordViolation(alert.GetPolicy().GetId(), item.Deployment.GetNamespace())
+				}
+			}
+
 			d.enforcer.ProcessAlertResults(central.ResourceAction_CREATE_RESOURCE, storage.LifecycleStage_RUNTIME, alertResults)
 
 			select {
@@ -784,6 +828,13 @@ func (d *detectorImpl) processAlertsForFlowOnEntity() {
 				DeploymentId: item.Deployment.GetId(),
 				Alerts:       alerts,
 				Stage:        storage.LifecycleStage_RUNTIME,
+			}
+
+			// Record violations for local policies (policy-as-code)
+			for _, alert := range alerts {
+				if alert.GetPolicy().GetSource() == storage.PolicySource_LOCAL {
+					d.recordViolation(alert.GetPolicy().GetId(), item.Deployment.GetNamespace())
+				}
 			}
 
 			d.enforcer.ProcessAlertResults(central.ResourceAction_CREATE_RESOURCE, storage.LifecycleStage_RUNTIME, alertResults)
