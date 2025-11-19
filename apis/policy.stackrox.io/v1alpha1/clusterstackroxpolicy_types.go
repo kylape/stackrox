@@ -42,8 +42,9 @@ type ClusterStackroxPolicyStatus struct {
 
 	// ViolationMetrics tracks violations detected by this policy
 	// Updated periodically as violations occur
+	// Includes per-namespace breakdown since cluster-scoped policies can span namespaces
 	// +optional
-	ViolationMetrics *PolicyViolationMetrics `json:"violationMetrics,omitempty"`
+	ViolationMetrics *ClusterScopedViolationMetrics `json:"violationMetrics,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -65,10 +65,11 @@ type StackroxPolicySpec struct {
 	// +optional
 	Exclusions []commonv1.Exclusion `json:"exclusions,omitempty"`
 
-	// Scope defines namespaces and workloads that should be included in this policy
-	// No scopes defined includes everything in the cluster
-	// Supports namespace and workload label selectors for flexible targeting
+	// Scope defines which workloads this policy targets within the policy's namespace
+	// Namespace-scoped policies are automatically scoped to their own namespace
+	// Only workloadSelector is allowed - namespace and namespaceSelector are forbidden
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self.all(s, !has(s.namespace) && !has(s.namespaceSelector))",message="namespace-scoped policies cannot specify namespace or namespaceSelector in scope"
 	Scope []commonv1.Scope `json:"scope,omitempty"`
 
 	// +kubebuilder:validation:Required
@@ -95,8 +96,22 @@ type StackroxPolicySpec struct {
 	MitreAttackVectors []commonv1.MitreAttackVectors `json:"mitreAttackVectors,omitempty"`
 }
 
-// PolicyViolationMetrics tracks violations detected for this policy
-type PolicyViolationMetrics struct {
+// NamespaceScopedViolationMetrics tracks violations for namespace-scoped policies
+// Since these policies are implicitly scoped to their namespace, per-namespace
+// violation counts are not meaningful
+type NamespaceScopedViolationMetrics struct {
+	// TotalViolations is the cumulative count of all violations detected
+	// +optional
+	TotalViolations int32 `json:"totalViolations,omitempty"`
+
+	// LastViolationTime is the timestamp of the most recent violation
+	// +optional
+	LastViolationTime *metav1.Time `json:"lastViolationTime,omitempty"`
+}
+
+// ClusterScopedViolationMetrics tracks violations for cluster-scoped policies
+// Includes per-namespace breakdown since cluster-scoped policies can span multiple namespaces
+type ClusterScopedViolationMetrics struct {
 	// TotalViolations is the cumulative count of all violations detected
 	// +optional
 	TotalViolations int32 `json:"totalViolations,omitempty"`
@@ -128,7 +143,7 @@ type StackroxPolicyStatus struct {
 	// ViolationMetrics tracks violations detected by this policy
 	// Updated periodically as violations occur
 	// +optional
-	ViolationMetrics *PolicyViolationMetrics `json:"violationMetrics,omitempty"`
+	ViolationMetrics *NamespaceScopedViolationMetrics `json:"violationMetrics,omitempty"`
 }
 
 // +kubebuilder:object:root=true

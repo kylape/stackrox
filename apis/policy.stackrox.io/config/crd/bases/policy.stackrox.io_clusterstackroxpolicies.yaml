@@ -394,9 +394,9 @@ spec:
                 type: string
               scope:
                 description: |-
-                  Scope defines namespaces and workloads that should be included in this policy
-                  No scopes defined includes everything in the cluster
-                  Supports namespace and workload label selectors for flexible targeting
+                  Scope defines which workloads this policy targets within the policy's namespace
+                  Namespace-scoped policies are automatically scoped to their own namespace
+                  Only workloadSelector is allowed - namespace and namespaceSelector are forbidden
                 items:
                   description: |-
                     Scope defines targeting for policies in secured clusters
@@ -505,6 +505,10 @@ spec:
                       x-kubernetes-map-type: atomic
                   type: object
                 type: array
+                x-kubernetes-validations:
+                - message: namespace-scoped policies cannot specify namespace or namespaceSelector
+                    in scope
+                  rule: self.all(s, !has(s.namespace) && !has(s.namespaceSelector))
               severity:
                 description: Severity defines how severe a violation from this policy
                   is
@@ -610,6 +614,7 @@ spec:
                 description: |-
                   ViolationMetrics tracks violations detected by this policy
                   Updated periodically as violations occur
+                  Includes per-namespace breakdown since cluster-scoped policies can span namespaces
                 properties:
                   lastViolationTime:
                     description: LastViolationTime is the timestamp of the most recent
