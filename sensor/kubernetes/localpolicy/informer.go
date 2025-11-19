@@ -891,7 +891,12 @@ func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, r
 		}
 
 		if len(updatedByNs) > 0 {
-			violationMetrics["violationsByNamespace"] = updatedByNs
+			// Convert map[string]string to map[string]interface{} for SetNestedMap
+			byNsInterface := make(map[string]interface{}, len(updatedByNs))
+			for k, v := range updatedByNs {
+				byNsInterface[k] = v
+			}
+			violationMetrics["violationsByNamespace"] = byNsInterface
 		}
 
 		// Update status
