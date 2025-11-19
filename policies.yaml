@@ -1,0 +1,44 @@
+---
+apiVersion: policy.stackrox.io/v1alpha1
+kind: StackroxPolicy
+metadata:
+  name: deploy-privileged-block
+spec:
+  categories:
+  - Security Best Practices
+  description: Blocks privileged containers at deploy time
+  disabled: false
+  enforcementActions:
+  - FAIL_DEPLOYMENT_CREATE_ENFORCEMENT
+  lifecycleStages:
+  - DEPLOY
+  policyName: Deploy Privileged Container Block
+  policySections:
+  - policyGroups:
+    - fieldName: Privileged Container
+      values:
+      - value: "true"
+    sectionName: Privilege Check
+  severity: CRITICAL_SEVERITY
+---
+apiVersion: policy.stackrox.io/v1alpha1
+kind: StackroxPolicy
+metadata:
+  name: runtime-shell-exec
+spec:
+  categories:
+  - Security Best Practices
+  description: Detects shell execution in containers
+  disabled: false
+  eventSource: DEPLOYMENT_EVENT
+  lifecycleStages:
+  - RUNTIME
+  policyName: Runtime Shell Execution
+  policySections:
+  - policyGroups:
+    - fieldName: Process Name
+      values:
+      - value: sh
+      - value: bash
+    sectionName: Shell Processes
+  severity: HIGH_SEVERITY

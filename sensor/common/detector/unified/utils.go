@@ -18,6 +18,10 @@ func isLifecycleStage(policy *storage.Policy, stage storage.LifecycleStage) bool
 func reconcilePolicySets(newList []*storage.Policy, policySet detection.PolicySet, matcher func(p *storage.Policy) bool) {
 	policyIDSet := set.NewStringSet()
 	for _, v := range policySet.GetCompiledPolicies() {
+		// Skip LOCAL policies - they're not managed by Central and should not be removed during reconciliation
+		if v.Policy().GetSource() == storage.PolicySource_LOCAL {
+			continue
+		}
 		policyIDSet.Add(v.Policy().GetId())
 	}
 
