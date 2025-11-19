@@ -407,7 +407,10 @@ func (d *detectorImpl) recordViolation(policyID string, namespace string) {
 	d.recorderMu.RUnlock()
 
 	if recorder != nil {
+		log.Infof("Recording violation for local policy %s in namespace %s", policyID, namespace)
 		recorder.RecordViolation(policyID, namespace, time.Now())
+	} else {
+		log.Warnf("Violation recorder not set, cannot record violation for policy %s", policyID)
 	}
 }
 
@@ -463,10 +466,16 @@ func (d *detectorImpl) runDetector() {
 			})
 
 			// Record violations for local policies (policy-as-code)
+			localPolicyCount := 0
 			for _, alert := range alerts {
 				if alert.GetPolicy().GetSource() == storage.PolicySource_LOCAL {
+					localPolicyCount++
 					d.recordViolation(alert.GetPolicy().GetId(), scanOutput.deployment.GetNamespace())
 				}
+			}
+			if len(alerts) > 0 {
+				log.Infof("Deploy-time detection: %d total alerts, %d local policy violations for deployment %s",
+					len(alerts), localPolicyCount, scanOutput.deployment.GetName())
 			}
 
 			select {
