@@ -24,8 +24,13 @@ import (
 
 	commonv1 "github.com/stackrox/rox/pkg/apis/common/v1"
 	"github.com/stackrox/rox/generated/storage"
+	"github.com/stackrox/rox/pkg/logging"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+var (
+	log = logging.LoggerForModule()
 )
 
 // ToStoragePolicy converts a StackroxPolicySpec to a storage.Policy protobuf message
