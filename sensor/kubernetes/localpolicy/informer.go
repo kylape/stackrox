@@ -867,36 +867,43 @@ func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, r
 		}
 
 		// Merge namespace violation counts
-		existingByNs, _, _ := unstructured.NestedStringMap(existingMetrics, "violationsByNamespace")
-		if existingByNs == nil {
-			existingByNs = make(map[string]string)
-		}
+		// Get existing violations as map[string]interface{} (could be int64 or other types)
+		existingByNsRaw, _, _ := unstructured.NestedMap(existingMetrics, "violationsByNamespace")
 
-		updatedByNs := make(map[string]string)
+		updatedByNs := make(map[string]interface{})
+
+		// Add new violations to existing counts
 		for ns, count := range metrics.violationsByNamespace {
-			existingCount := int32(0)
-			if val, ok := existingByNs[ns]; ok {
-				if parsed, err := fmt.Sscanf(val, "%d", &existingCount); err == nil && parsed == 1 {
-					// parsed successfully
+			existingCount := int64(0)
+			if existingByNsRaw != nil {
+				if val, ok := existingByNsRaw[ns]; ok {
+					// Convert existing value to int64
+					switch v := val.(type) {
+					case int64:
+						existingCount = v
+					case int32:
+						existingCount = int64(v)
+					case int:
+						existingCount = int64(v)
+					case float64:
+						existingCount = int64(v)
+					}
 				}
 			}
-			updatedByNs[ns] = fmt.Sprintf("%d", existingCount+count)
+			updatedByNs[ns] = existingCount + int64(count)
 		}
 
-		// Also include namespaces that were in existing but not in new metrics
-		for ns, val := range existingByNs {
-			if _, exists := updatedByNs[ns]; !exists {
-				updatedByNs[ns] = val
+		// Include namespaces that were in existing but not in new metrics
+		if existingByNsRaw != nil {
+			for ns, val := range existingByNsRaw {
+				if _, exists := updatedByNs[ns]; !exists {
+					updatedByNs[ns] = val
+				}
 			}
 		}
 
 		if len(updatedByNs) > 0 {
-			// Convert map[string]string to map[string]interface{} for SetNestedMap
-			byNsInterface := make(map[string]interface{}, len(updatedByNs))
-			for k, v := range updatedByNs {
-				byNsInterface[k] = v
-			}
-			violationMetrics["violationsByNamespace"] = byNsInterface
+			violationMetrics["violationsByNamespace"] = updatedByNs
 		}
 
 		// Update status
