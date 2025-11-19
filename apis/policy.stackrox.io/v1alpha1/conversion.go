@@ -242,11 +242,30 @@ func convertScopes(scopes []commonv1.Scope, namespace string, isClusterScoped bo
 
 	// Add any explicitly configured scopes from the spec
 	for _, scope := range scopes {
+		// For namespace-scoped policies, reject scopes that reference other namespaces
+		// This prevents privilege escalation where a namespace-scoped policy tries to
+		// evaluate resources in other namespaces
+		if !isClusterScoped {
+			if scope.Namespace != "" && scope.Namespace != namespace {
+				log.Warnf("Ignoring scope with namespace %q in namespace-scoped policy (policy namespace: %q). "+
+					"Namespace-scoped policies can only evaluate resources in their own namespace.",
+					scope.Namespace, namespace)
+				continue
+			}
+			// Also block namespace selectors - they could select other namespaces
+			if scope.NamespaceSelector != nil {
+				log.Warnf("Ignoring scope with namespace selector in namespace-scoped policy (policy namespace: %q). "+
+					"Namespace-scoped policies cannot use namespace selectors.",
+					namespace)
+				continue
+			}
+		}
+
 		storageScope := &storage.Scope{
 			Namespace: scope.Namespace,
 		}
 
-		// Convert namespace selector if present
+		// Convert namespace selector if present (only for cluster-scoped policies)
 		if scope.NamespaceSelector != nil {
 			storageScope.NamespaceSelector = convertLabelSelector(scope.NamespaceSelector)
 		}
