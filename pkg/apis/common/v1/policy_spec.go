@@ -58,6 +58,19 @@ const (
 
 // Scope defines targeting for policies in secured clusters
 // Policies are implicitly scoped to the local cluster
+// NamespaceScopedScope defines scope for namespace-scoped policies
+// Namespace-scoped policies are implicitly scoped to their own namespace,
+// so only workload selectors are allowed
+type NamespaceScopedScope struct {
+	// WorkloadSelector is a Kubernetes label selector for workloads
+	// Targets workloads (Deployments, Pods, etc.) matching the selector
+	// Example: matchLabels: {app: frontend, tier: web}
+	// +optional
+	WorkloadSelector *metav1.LabelSelector `json:"workloadSelector,omitempty"`
+}
+
+// Scope defines scope for cluster-scoped policies
+// Cluster-scoped policies can target resources across all namespaces
 type Scope struct {
 	// Namespace is a direct namespace name to target
 	// +optional

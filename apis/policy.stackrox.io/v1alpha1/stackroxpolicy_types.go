@@ -67,10 +67,9 @@ type StackroxPolicySpec struct {
 
 	// Scope defines which workloads this policy targets within the policy's namespace
 	// Namespace-scoped policies are automatically scoped to their own namespace
-	// Only workloadSelector is allowed - namespace and namespaceSelector are forbidden
+	// Only workload selectors are allowed
 	// +optional
-	// +kubebuilder:validation:XValidation:rule="self.all(s, !has(s.namespace) && !has(s.namespaceSelector))",message="namespace-scoped policies cannot specify namespace or namespaceSelector in scope"
-	Scope []commonv1.Scope `json:"scope,omitempty"`
+	Scope []commonv1.NamespaceScopedScope `json:"scope,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=UNSET_SEVERITY;LOW_SEVERITY;MEDIUM_SEVERITY;HIGH_SEVERITY;CRITICAL_SEVERITY

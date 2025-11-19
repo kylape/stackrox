@@ -305,7 +305,7 @@ func (in *StackroxPolicySpec) DeepCopyInto(out *StackroxPolicySpec) {
 	}
 	if in.Scope != nil {
 		in, out := &in.Scope, &out.Scope
-		*out = make([]v1.Scope, len(*in))
+		*out = make([]v1.NamespaceScopedScope, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

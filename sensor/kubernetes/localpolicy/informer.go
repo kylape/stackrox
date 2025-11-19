@@ -216,7 +216,6 @@ func (m *Manager) handlePolicyAdd(obj interface{}) {
 		&policy.Spec,
 		policy.Namespace,
 		policy.Name,
-		false, // not cluster-scoped
 	)
 	if err != nil {
 		log.Errorf("Failed to convert StackroxPolicy %s/%s: %v",
@@ -355,20 +354,16 @@ func (m *Manager) handleClusterPolicyAdd(obj interface{}) {
 	log.Infof("Processing new ClusterStackroxPolicy: %s", policy.Name)
 
 	// Check if policy has RUNTIME lifecycle stage
-	// Cast ClusterStackroxPolicySpec to StackroxPolicySpec since they're structurally identical
-	spec := (*policyv1alpha1.StackroxPolicySpec)(&policy.Spec)
-	if !policyv1alpha1.ShouldApplyToSensor(spec) {
+	if !policyv1alpha1.ShouldApplyToSensorClusterScoped(&policy.Spec) {
 		log.Debugf("ClusterStackroxPolicy %s does not have RUNTIME stage, marking as not applicable", policy.Name)
 		m.updateClusterPolicyStatusNotApplicable(policy)
 		return
 	}
 
 	// Convert CRD to storage.Policy (cluster-scoped)
-	storagePolicy, err := policyv1alpha1.ToStoragePolicy(
-		spec,
-		"", // no namespace for cluster-scoped
+	storagePolicy, err := policyv1alpha1.ToStoragePolicyFromClusterSpec(
+		&policy.Spec,
 		policy.Name,
-		true, // cluster-scoped
 	)
 	if err != nil {
 		log.Errorf("Failed to convert ClusterStackroxPolicy %s: %v", policy.Name, err)

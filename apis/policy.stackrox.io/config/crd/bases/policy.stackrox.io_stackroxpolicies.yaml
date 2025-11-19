@@ -394,64 +394,15 @@ spec:
                 description: |-
                   Scope defines which workloads this policy targets within the policy's namespace
                   Namespace-scoped policies are automatically scoped to their own namespace
-                  Only workloadSelector is allowed - namespace and namespaceSelector are forbidden
+                  Only workload selectors are allowed
                 items:
                   description: |-
                     Scope defines targeting for policies in secured clusters
                     Policies are implicitly scoped to the local cluster
+                    NamespaceScopedScope defines scope for namespace-scoped policies
+                    Namespace-scoped policies are implicitly scoped to their own namespace,
+                    so only workload selectors are allowed
                   properties:
-                    namespace:
-                      description: Namespace is a direct namespace name to target
-                      type: string
-                    namespaceSelector:
-                      description: |-
-                        NamespaceSelector is a Kubernetes label selector for namespaces
-                        Targets all namespaces matching the selector
-                        Example: matchLabels: {environment: production}
-                      properties:
-                        matchExpressions:
-                          description: matchExpressions is a list of label selector
-                            requirements. The requirements are ANDed.
-                          items:
-                            description: |-
-                              A label selector requirement is a selector that contains values, a key, and an operator that
-                              relates the key and values.
-                            properties:
-                              key:
-                                description: key is the label key that the selector
-                                  applies to.
-                                type: string
-                              operator:
-                                description: |-
-                                  operator represents a key's relationship to a set of values.
-                                  Valid operators are In, NotIn, Exists and DoesNotExist.
-                                type: string
-                              values:
-                                description: |-
-                                  values is an array of string values. If the operator is In or NotIn,
-                                  the values array must be non-empty. If the operator is Exists or DoesNotExist,
-                                  the values array must be empty. This array is replaced during a strategic
-                                  merge patch.
-                                items:
-                                  type: string
-                                type: array
-                                x-kubernetes-list-type: atomic
-                            required:
-                            - key
-                            - operator
-                            type: object
-                          type: array
-                          x-kubernetes-list-type: atomic
-                        matchLabels:
-                          additionalProperties:
-                            type: string
-                          description: |-
-                            matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
-                            map is equivalent to an element of matchExpressions, whose key field is "key", the
-                            operator is "In", and the values array contains only "value". The requirements are ANDed.
-                          type: object
-                      type: object
-                      x-kubernetes-map-type: atomic
                     workloadSelector:
                       description: |-
                         WorkloadSelector is a Kubernetes label selector for workloads
@@ -503,10 +454,6 @@ spec:
                       x-kubernetes-map-type: atomic
                   type: object
                 type: array
-                x-kubernetes-validations:
-                - message: namespace-scoped policies cannot specify namespace or namespaceSelector
-                    in scope
-                  rule: self.all(s, !has(s.namespace) && !has(s.namespaceSelector))
               severity:
                 description: Severity defines how severe a violation from this policy
                   is

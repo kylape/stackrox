@@ -33,7 +33,7 @@ var (
 	log = logging.LoggerForModule()
 )
 
-// ToStoragePolicy converts a StackroxPolicySpec to a storage.Policy protobuf message
+// ToStoragePolicy converts a namespace-scoped StackroxPolicySpec to a storage.Policy protobuf message
 // This is used by the local policy controller to convert CRD specs to the format
 // expected by sensor for policy evaluation.
 //
@@ -42,10 +42,10 @@ var (
 // - No cluster ID resolution (policies are implicitly local)
 // - No notifier ID resolution (notifier names are preserved as-is)
 // - Policy ID is generated locally based on namespace/name hash
-func ToStoragePolicy(spec *StackroxPolicySpec, namespace, name string, isClusterScoped bool) (*storage.Policy, error) {
+func ToStoragePolicy(spec *StackroxPolicySpec, namespace, name string) (*storage.Policy, error) {
 	policy := &storage.Policy{
 		// Generate a deterministic local policy ID
-		Id: generateLocalPolicyID(namespace, name, isClusterScoped),
+		Id: generateLocalPolicyID(namespace, name, false),
 
 		// Basic policy metadata
 		Name:        spec.PolicyName,
@@ -81,7 +81,64 @@ func ToStoragePolicy(spec *StackroxPolicySpec, namespace, name string, isCluster
 		MitreAttackVectors: convertMitreVectors(spec.MitreAttackVectors),
 
 		// Scope and exclusions
-		Scope:      convertScopes(spec.Scope, namespace, isClusterScoped),
+		Scope:      convertNamespaceScopedScopes(spec.Scope, namespace),
+		Exclusions: convertExclusions(spec.Exclusions),
+
+		// Policy version (must be 1.1 for runtime policies)
+		PolicyVersion: "1.1",
+
+		// Local policies are always considered "custom" (not default)
+		IsDefault: false,
+
+		// Local policies criteria are not locked
+		CriteriaLocked:     false,
+		MitreVectorsLocked: false,
+	}
+
+	return policy, nil
+}
+
+// ToStoragePolicyFromClusterSpec converts a cluster-scoped ClusterStackroxPolicySpec to a storage.Policy protobuf message
+func ToStoragePolicyFromClusterSpec(spec *ClusterStackroxPolicySpec, name string) (*storage.Policy, error) {
+	policy := &storage.Policy{
+		// Generate a deterministic local policy ID
+		Id: generateLocalPolicyID("", name, true),
+
+		// Basic policy metadata
+		Name:        spec.PolicyName,
+		Description: spec.Description,
+		Rationale:   spec.Rationale,
+		Remediation: spec.Remediation,
+		Disabled:    spec.Disabled,
+		Categories:  spec.Categories,
+
+		// Policy source and timing
+		Source:      storage.PolicySource_LOCAL,
+		LastUpdated: timestamppb.Now(),
+
+		// Severity
+		Severity: parseSeverity(spec.Severity),
+
+		// Lifecycle stages
+		LifecycleStages: convertLifecycleStages(spec.LifecycleStages),
+
+		// Event source
+		EventSource: convertEventSource(spec.EventSource),
+
+		// Enforcement actions
+		EnforcementActions: convertEnforcementActions(spec.EnforcementActions),
+
+		// Notifiers (kept as names, will be resolved by sensor when sending alerts)
+		Notifiers: spec.Notifiers,
+
+		// Policy criteria
+		PolicySections: convertPolicySections(spec.PolicySections),
+
+		// MITRE ATT&CK
+		MitreAttackVectors: convertMitreVectors(spec.MitreAttackVectors),
+
+		// Scope and exclusions
+		Scope:      convertClusterScopes(spec.Scope),
 		Exclusions: convertExclusions(spec.Exclusions),
 
 		// Policy version (must be 1.1 for runtime policies)
@@ -234,43 +291,48 @@ func convertMitreVectors(vectors []commonv1.MitreAttackVectors) []*storage.Polic
 	return result
 }
 
-func convertScopes(scopes []commonv1.Scope, namespace string, isClusterScoped bool) []*storage.Scope {
+// convertNamespaceScopedScopes converts namespace-scoped policy scopes to storage format
+// Automatically adds an implicit namespace scope to ensure the policy only evaluates
+// resources in its own namespace
+func convertNamespaceScopedScopes(scopes []commonv1.NamespaceScopedScope, namespace string) []*storage.Scope {
 	result := make([]*storage.Scope, 0, len(scopes)+1)
 
-	// For namespace-scoped StackroxPolicy, automatically add an implicit namespace scope
+	// Automatically add an implicit namespace scope
 	// This ensures the policy only evaluates resources in its own namespace
-	if !isClusterScoped && namespace != "" {
+	if namespace != "" {
 		result = append(result, &storage.Scope{
 			Namespace: namespace,
 		})
 	}
 
-	// Add any explicitly configured scopes from the spec
+	// Add any explicitly configured workload selectors from the spec
 	for _, scope := range scopes {
-		// For namespace-scoped policies, reject scopes that reference other namespaces
-		// This prevents privilege escalation where a namespace-scoped policy tries to
-		// evaluate resources in other namespaces
-		if !isClusterScoped {
-			if scope.Namespace != "" && scope.Namespace != namespace {
-				log.Warnf("Ignoring scope with namespace %q in namespace-scoped policy (policy namespace: %q). "+
-					"Namespace-scoped policies can only evaluate resources in their own namespace.",
-					scope.Namespace, namespace)
-				continue
-			}
-			// Also block namespace selectors - they could select other namespaces
-			if scope.NamespaceSelector != nil {
-				log.Warnf("Ignoring scope with namespace selector in namespace-scoped policy (policy namespace: %q). "+
-					"Namespace-scoped policies cannot use namespace selectors.",
-					namespace)
-				continue
-			}
+		storageScope := &storage.Scope{
+			Namespace: namespace, // Always use the policy's namespace
 		}
 
+		// Convert workload selector if present
+		if scope.WorkloadSelector != nil {
+			storageScope.WorkloadSelector = convertLabelSelector(scope.WorkloadSelector)
+		}
+
+		result = append(result, storageScope)
+	}
+	return result
+}
+
+// convertClusterScopes converts cluster-scoped policy scopes to storage format
+// Cluster-scoped policies can target resources across all namespaces
+func convertClusterScopes(scopes []commonv1.Scope) []*storage.Scope {
+	result := make([]*storage.Scope, 0, len(scopes))
+
+	// Add any explicitly configured scopes from the spec
+	for _, scope := range scopes {
 		storageScope := &storage.Scope{
 			Namespace: scope.Namespace,
 		}
 
-		// Convert namespace selector if present (only for cluster-scoped policies)
+		// Convert namespace selector if present
 		if scope.NamespaceSelector != nil {
 			storageScope.NamespaceSelector = convertLabelSelector(scope.NamespaceSelector)
 		}

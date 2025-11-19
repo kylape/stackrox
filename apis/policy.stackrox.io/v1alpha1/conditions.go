@@ -173,3 +173,25 @@ func ShouldApplyToAdmissionControl(spec *StackroxPolicySpec) bool {
 	}
 	return false
 }
+
+// ShouldApplyToSensorClusterScoped returns true if the cluster-scoped policy should be evaluated by sensor
+// Sensor evaluates policies with RUNTIME lifecycle stage
+func ShouldApplyToSensorClusterScoped(spec *ClusterStackroxPolicySpec) bool {
+	for _, stage := range spec.LifecycleStages {
+		if stage == "RUNTIME" {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldApplyToAdmissionControlClusterScoped returns true if the cluster-scoped policy should be evaluated by admission control
+// Admission control evaluates policies with DEPLOY lifecycle stage
+func ShouldApplyToAdmissionControlClusterScoped(spec *ClusterStackroxPolicySpec) bool {
+	for _, stage := range spec.LifecycleStages {
+		if stage == "DEPLOY" {
+			return true
+		}
+	}
+	return false
+}
