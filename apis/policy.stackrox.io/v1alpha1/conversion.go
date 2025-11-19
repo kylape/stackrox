@@ -76,7 +76,7 @@ func ToStoragePolicy(spec *StackroxPolicySpec, namespace, name string, isCluster
 		MitreAttackVectors: convertMitreVectors(spec.MitreAttackVectors),
 
 		// Scope and exclusions
-		Scope:      convertScopes(spec.Scope, isClusterScoped),
+		Scope:      convertScopes(spec.Scope, namespace, isClusterScoped),
 		Exclusions: convertExclusions(spec.Exclusions),
 
 		// Policy version (must be 1.1 for runtime policies)
@@ -229,8 +229,18 @@ func convertMitreVectors(vectors []commonv1.MitreAttackVectors) []*storage.Polic
 	return result
 }
 
-func convertScopes(scopes []commonv1.Scope, isClusterScoped bool) []*storage.Scope {
-	result := make([]*storage.Scope, 0, len(scopes))
+func convertScopes(scopes []commonv1.Scope, namespace string, isClusterScoped bool) []*storage.Scope {
+	result := make([]*storage.Scope, 0, len(scopes)+1)
+
+	// For namespace-scoped StackroxPolicy, automatically add an implicit namespace scope
+	// This ensures the policy only evaluates resources in its own namespace
+	if !isClusterScoped && namespace != "" {
+		result = append(result, &storage.Scope{
+			Namespace: namespace,
+		})
+	}
+
+	// Add any explicitly configured scopes from the spec
 	for _, scope := range scopes {
 		storageScope := &storage.Scope{
 			Namespace: scope.Namespace,
