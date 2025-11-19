@@ -861,51 +861,6 @@ func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, r
 			"lastViolationTime": metrics.lastViolationTime.Format(time.RFC3339),
 		}
 
-		// Only track per-namespace violations for cluster-scoped policies
-		// Namespace-scoped policies are implicitly scoped to their namespace,
-		// so per-namespace breakdown doesn't make sense
-		if ref.isClusterScoped {
-			// Merge namespace violation counts
-			// Get existing violations as map[string]interface{} (could be int64 or other types)
-			existingByNsRaw, _, _ := unstructured.NestedMap(existingMetrics, "violationsByNamespace")
-
-			updatedByNs := make(map[string]interface{})
-
-			// Add new violations to existing counts
-			for ns, count := range metrics.violationsByNamespace {
-				existingCount := int64(0)
-				if existingByNsRaw != nil {
-					if val, ok := existingByNsRaw[ns]; ok {
-						// Convert existing value to int64
-						switch v := val.(type) {
-						case int64:
-							existingCount = v
-						case int32:
-							existingCount = int64(v)
-						case int:
-							existingCount = int64(v)
-						case float64:
-							existingCount = int64(v)
-						}
-					}
-				}
-				updatedByNs[ns] = existingCount + int64(count)
-			}
-
-			// Include namespaces that were in existing but not in new metrics
-			if existingByNsRaw != nil {
-				for ns, val := range existingByNsRaw {
-					if _, exists := updatedByNs[ns]; !exists {
-						updatedByNs[ns] = val
-					}
-				}
-			}
-
-			if len(updatedByNs) > 0 {
-				violationMetrics["violationsByNamespace"] = updatedByNs
-			}
-		}
-
 		// Update status
 		if err := unstructured.SetNestedMap(status, violationMetrics, "violationMetrics"); err != nil {
 			return fmt.Errorf("failed to set violation metrics: %w", err)

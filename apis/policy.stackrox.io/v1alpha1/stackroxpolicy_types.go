@@ -109,7 +109,6 @@ type NamespaceScopedViolationMetrics struct {
 }
 
 // ClusterScopedViolationMetrics tracks violations for cluster-scoped policies
-// Includes per-namespace breakdown since cluster-scoped policies can span multiple namespaces
 type ClusterScopedViolationMetrics struct {
 	// TotalViolations is the cumulative count of all violations detected
 	// +optional
@@ -118,10 +117,6 @@ type ClusterScopedViolationMetrics struct {
 	// LastViolationTime is the timestamp of the most recent violation
 	// +optional
 	LastViolationTime *metav1.Time `json:"lastViolationTime,omitempty"`
-
-	// ViolationsByNamespace tracks violation counts per namespace
-	// +optional
-	ViolationsByNamespace map[string]int32 `json:"violationsByNamespace,omitempty"`
 }
 
 // StackroxPolicyStatus defines the observed state of StackroxPolicy

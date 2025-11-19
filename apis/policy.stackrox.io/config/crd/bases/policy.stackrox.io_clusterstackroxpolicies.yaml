@@ -610,7 +610,6 @@ spec:
                 description: |-
                   ViolationMetrics tracks violations detected by this policy
                   Updated periodically as violations occur
-                  Includes per-namespace breakdown since cluster-scoped policies can span namespaces
                 properties:
                   lastViolationTime:
                     description: LastViolationTime is the timestamp of the most recent
@@ -622,13 +621,6 @@ spec:
                       detected
                     format: int32
                     type: integer
-                  violationsByNamespace:
-                    additionalProperties:
-                      format: int32
-                      type: integer
-                    description: ViolationsByNamespace tracks violation counts per
-                      namespace
-                    type: object
                 type: object
             type: object
         type: object
