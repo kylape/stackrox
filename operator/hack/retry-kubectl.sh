@@ -1,1 +1,1 @@
-../../scripts/retry-kubectl.sh
+/root/workspace/worktrees/support-case/scripts/retry-kubectl.sh

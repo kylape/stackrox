@@ -1,15 +1,15 @@
 # We have to emulate directory layout as in the repo so that imports in go files work fine.
-ARG roxpath=/workspace/src/github.com/stackrox/rox
+# ARG roxpath=/workspace/src/github.com/stackrox/rox
 ARG TARGET_ARCH=amd64
 
 FROM registry.access.redhat.com/ubi9/go-toolset:1.24 AS builder
 
-# Build the manager binary
-ARG TARGET_ARCH
-ARG roxpath
+# # Build the manager binary
+# ARG TARGET_ARCH
+# ARG roxpath
 
-WORKDIR ${roxpath}/
-ENV GOPATH=/workspace
+# WORKDIR ${roxpath}/
+# ENV GOPATH=/workspace
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod
@@ -53,17 +53,18 @@ RUN git init && git add .
 ENV CGO_ENABLED=0
 
 # Build the operator binary.
-RUN GOOS=linux GOARCH=${TARGET_ARCH} scripts/go-build-file.sh operator/cmd/main.go stackrox-operator
+USER root:root
+RUN GOOS=linux GOARCH=${TARGET_ARCH} scripts/go-build-file.sh operator/cmd/main.go /stackrox-operator
 
 ARG TARGET_ARCH
 FROM --platform=linux/${TARGET_ARCH} registry.access.redhat.com/ubi9-micro:latest
 
-ARG roxpath
+# ARG roxpath
 
 ARG ROX_IMAGE_FLAVOR
 ENV ROX_IMAGE_FLAVOR=${ROX_IMAGE_FLAVOR}
 
-COPY --from=builder ${roxpath}/stackrox-operator /usr/local/bin/
+COPY --from=builder stackrox-operator /usr/local/bin/
 
 # The following are numeric uid and gid of `nobody` user in UBI.
 # We can't use symbolic names because otherwise k8s will fail to start the pod with an error like this:
