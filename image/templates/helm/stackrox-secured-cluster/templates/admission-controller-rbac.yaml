@@ -50,3 +50,50 @@ roleRef:
   kind: Role
   name: watch-config
   apiGroup: rbac.authorization.k8s.io
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "srox.globalResourceName" (list . "stackrox:admission-control-local-policy-manager") }}
+  labels:
+    {{- include "srox.labels" (list . "clusterrole" "stackrox:admission-control-local-policy-manager") | nindent 4 }}
+    auto-upgrade.stackrox.io/component: "sensor"
+  annotations:
+    {{- include "srox.annotations" (list . "clusterrole" "stackrox:admission-control-local-policy-manager") | nindent 4 }}
+rules:
+- apiGroups:
+  - policy.stackrox.io
+  resources:
+  - stackroxpolicies
+  - clusterstackroxpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policy.stackrox.io
+  resources:
+  - stackroxpolicies/status
+  - clusterstackroxpolicies/status
+  verbs:
+  - get
+  - update
+  - patch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "srox.globalResourceName" (list . "stackrox:admission-control-local-policy-manager-binding") }}
+  labels:
+    {{- include "srox.labels" (list . "clusterrolebinding" "stackrox:admission-control-local-policy-manager-binding") | nindent 4 }}
+    auto-upgrade.stackrox.io/component: "sensor"
+  annotations:
+    {{- include "srox.annotations" (list . "clusterrolebinding" "stackrox:admission-control-local-policy-manager-binding") | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: admission-control
+  namespace: {{ ._rox._namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "srox.globalResourceName" (list . "stackrox:admission-control-local-policy-manager") }}
+  apiGroup: rbac.authorization.k8s.io
