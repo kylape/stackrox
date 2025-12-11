@@ -1,0 +1,5 @@
+FROM localhost:5001/stackrox/main:local-dev-local-e2e
+
+COPY e2e-test.bin /test/e2e-test.bin
+
+WORKDIR /test

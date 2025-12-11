@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: e2e-test
+  namespace: stackrox
+spec:
+  restartPolicy: Never
+  containers:
+  - name: test
+    image: kind-registry:5000/e2e-test:latest
+    imagePullPolicy: Always
+    command: ["/test/e2e-test.bin"]
+    args: ["-test.v", "-test.run", "TestPing"]
+    env:
+    - name: ROX_ADMIN_PASSWORD
+      value: "E9wVfaKv0boAE0mE1eqa5tdMCfomrm1P"
+    - name: API_ENDPOINT
+      value: "central.stackrox.svc:443"
+    - name: ROX_USERNAME
+      value: "admin"
