@@ -55,7 +55,7 @@ var (
 // ViolationRecorder is the interface for recording local policy violations
 // This allows the localpolicy informer to track violation metrics
 type ViolationRecorder interface {
-	RecordViolation(policyID string, namespace string, timestamp time.Time)
+	RecordViolation(policyID string, deploymentID string, deploymentName string, namespace string, timestamp time.Time)
 }
 
 // Detector is the sensor component that syncs policies from Central and runs detection
@@ -401,14 +401,14 @@ func (d *detectorImpl) SetViolationRecorder(recorder ViolationRecorder) {
 }
 
 // recordViolation records a local policy violation for metrics tracking
-func (d *detectorImpl) recordViolation(policyID string, namespace string) {
+func (d *detectorImpl) recordViolation(policyID string, deploymentID string, deploymentName string, namespace string) {
 	d.recorderMu.RLock()
 	recorder := d.violationRecorder
 	d.recorderMu.RUnlock()
 
 	if recorder != nil {
-		log.Infof("Recording violation for local policy %s in namespace %s", policyID, namespace)
-		recorder.RecordViolation(policyID, namespace, time.Now())
+		log.Infof("Recording violation for local policy %s in deployment %s/%s", policyID, namespace, deploymentName)
+		recorder.RecordViolation(policyID, deploymentID, deploymentName, namespace, time.Now())
 	} else {
 		log.Warnf("Violation recorder not set, cannot record violation for policy %s", policyID)
 	}
@@ -470,7 +470,12 @@ func (d *detectorImpl) runDetector() {
 			for _, alert := range alerts {
 				if alert.GetPolicy().GetSource() == storage.PolicySource_LOCAL {
 					localPolicyCount++
-					d.recordViolation(alert.GetPolicy().GetId(), scanOutput.deployment.GetNamespace())
+					d.recordViolation(
+						alert.GetPolicy().GetId(),
+						scanOutput.deployment.GetId(),
+						scanOutput.deployment.GetName(),
+						scanOutput.deployment.GetNamespace(),
+					)
 				}
 			}
 			if len(alerts) > 0 {
@@ -713,7 +718,12 @@ func (d *detectorImpl) processIndicator() {
 			// Record violations for local policies (policy-as-code)
 			for _, alert := range alerts {
 				if alert.GetPolicy().GetSource() == storage.PolicySource_LOCAL {
-					d.recordViolation(alert.GetPolicy().GetId(), item.Deployment.GetNamespace())
+					d.recordViolation(
+						alert.GetPolicy().GetId(),
+						item.Deployment.GetId(),
+						item.Deployment.GetName(),
+						item.Deployment.GetNamespace(),
+					)
 				}
 			}
 
@@ -842,7 +852,12 @@ func (d *detectorImpl) processAlertsForFlowOnEntity() {
 			// Record violations for local policies (policy-as-code)
 			for _, alert := range alerts {
 				if alert.GetPolicy().GetSource() == storage.PolicySource_LOCAL {
-					d.recordViolation(alert.GetPolicy().GetId(), item.Deployment.GetNamespace())
+					d.recordViolation(
+						alert.GetPolicy().GetId(),
+						item.Deployment.GetId(),
+						item.Deployment.GetName(),
+						item.Deployment.GetNamespace(),
+					)
 				}
 			}
 

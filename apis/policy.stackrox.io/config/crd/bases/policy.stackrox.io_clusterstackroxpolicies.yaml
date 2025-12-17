@@ -611,6 +611,47 @@ spec:
                   ViolationMetrics tracks violations detected by this policy
                   Updated periodically as violations occur
                 properties:
+                  deploymentViolations:
+                    description: |-
+                      DeploymentViolations tracks per-deployment violation details
+                      Limited to the most recent 100 deployments
+                    items:
+                      description: DeploymentViolation tracks violation metrics for
+                        a specific deployment
+                      properties:
+                        deploymentRef:
+                          description: DeploymentRef identifies the violating deployment
+                          properties:
+                            name:
+                              description: Name is the deployment name
+                              type: string
+                            namespace:
+                              description: |-
+                                Namespace is the deployment namespace
+                                Only populated for cluster-scoped policies
+                                For namespace-scoped policies, the namespace is implicit
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        lastTriggered:
+                          description: LastTriggered is the timestamp of the most
+                            recent violation
+                          format: date-time
+                          type: string
+                        violationCount:
+                          description: ViolationCount is the cumulative count of violations
+                            from this deployment
+                          format: int32
+                          minimum: 1
+                          type: integer
+                      required:
+                      - deploymentRef
+                      - lastTriggered
+                      - violationCount
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
                   lastViolationTime:
                     description: LastViolationTime is the timestamp of the most recent
                       violation

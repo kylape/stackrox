@@ -95,6 +95,34 @@ type StackroxPolicySpec struct {
 	MitreAttackVectors []commonv1.MitreAttackVectors `json:"mitreAttackVectors,omitempty"`
 }
 
+// DeploymentReference identifies a deployment that violated a policy
+type DeploymentReference struct {
+	// Name is the deployment name
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// Namespace is the deployment namespace
+	// Only populated for cluster-scoped policies
+	// For namespace-scoped policies, the namespace is implicit
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// DeploymentViolation tracks violation metrics for a specific deployment
+type DeploymentViolation struct {
+	// DeploymentRef identifies the violating deployment
+	// +kubebuilder:validation:Required
+	DeploymentRef DeploymentReference `json:"deploymentRef"`
+
+	// ViolationCount is the cumulative count of violations from this deployment
+	// +kubebuilder:validation:Minimum=1
+	ViolationCount int32 `json:"violationCount"`
+
+	// LastTriggered is the timestamp of the most recent violation
+	// +kubebuilder:validation:Required
+	LastTriggered *metav1.Time `json:"lastTriggered"`
+}
+
 // NamespaceScopedViolationMetrics tracks violations for namespace-scoped policies
 // Since these policies are implicitly scoped to their namespace, per-namespace
 // violation counts are not meaningful
@@ -106,6 +134,12 @@ type NamespaceScopedViolationMetrics struct {
 	// LastViolationTime is the timestamp of the most recent violation
 	// +optional
 	LastViolationTime *metav1.Time `json:"lastViolationTime,omitempty"`
+
+	// DeploymentViolations tracks per-deployment violation details
+	// Limited to the most recent 100 deployments
+	// +optional
+	// +listType=atomic
+	DeploymentViolations []DeploymentViolation `json:"deploymentViolations,omitempty"`
 }
 
 // ClusterScopedViolationMetrics tracks violations for cluster-scoped policies
@@ -117,6 +151,12 @@ type ClusterScopedViolationMetrics struct {
 	// LastViolationTime is the timestamp of the most recent violation
 	// +optional
 	LastViolationTime *metav1.Time `json:"lastViolationTime,omitempty"`
+
+	// DeploymentViolations tracks per-deployment violation details
+	// Limited to the most recent 100 deployments
+	// +optional
+	// +listType=atomic
+	DeploymentViolations []DeploymentViolation `json:"deploymentViolations,omitempty"`
 }
 
 // StackroxPolicyStatus defines the observed state of StackroxPolicy

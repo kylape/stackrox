@@ -3,6 +3,7 @@ package localpolicy
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -40,6 +41,10 @@ var (
 const (
 	// maxStatusUpdateRetries is the maximum number of retries for status updates on optimistic concurrency conflicts
 	maxStatusUpdateRetries = 5
+
+	// maxDeploymentViolationsTracked limits per-deployment tracking to prevent unbounded CRD growth
+	// With ~100 bytes per deployment, 100 deployments = ~10KB (well within CRD limits)
+	maxDeploymentViolationsTracked = 100
 )
 
 // PolicyDetector is the interface for policy detection (avoid circular dependency)
@@ -48,11 +53,22 @@ type PolicyDetector interface {
 	RemoveLocalPolicy(policyID string) error
 }
 
+// deploymentViolationMetrics tracks violations for a specific deployment
+type deploymentViolationMetrics struct {
+	deploymentID      string
+	deploymentName    string
+	namespace         string
+	violationCount    int32
+	lastViolationTime time.Time
+}
+
 // violationMetrics tracks accumulated violations for a policy
 type violationMetrics struct {
 	totalViolations       int32
 	lastViolationTime     time.Time
-	violationsByNamespace map[string]int32
+	violationsByNamespace map[string]int32 // Deprecated, kept for backward compat
+	// Map of deploymentID -> per-deployment metrics
+	deploymentViolations map[string]*deploymentViolationMetrics
 }
 
 // policyRef tracks CRD reference for a local policy
@@ -92,7 +108,7 @@ func NewManager(dynamicClient dynamic.Interface, detector PolicyDetector) *Manag
 
 // RecordViolation is called by the detector when a local policy violation occurs
 // This implements the detector.ViolationRecorder interface
-func (m *Manager) RecordViolation(policyID string, namespace string, timestamp time.Time) {
+func (m *Manager) RecordViolation(policyID string, deploymentID string, deploymentName string, namespace string, timestamp time.Time) {
 	m.violationsMu.Lock()
 	defer m.violationsMu.Unlock()
 
@@ -100,18 +116,61 @@ func (m *Manager) RecordViolation(policyID string, namespace string, timestamp t
 	if !exists {
 		metrics = &violationMetrics{
 			violationsByNamespace: make(map[string]int32),
+			deploymentViolations:  make(map[string]*deploymentViolationMetrics),
 		}
 		m.pendingViolations[policyID] = metrics
 	}
 
+	// Update aggregate metrics
 	metrics.totalViolations++
 	metrics.lastViolationTime = timestamp
 	if namespace != "" {
 		metrics.violationsByNamespace[namespace]++
 	}
 
-	log.Debugf("Recorded violation for local policy %s in namespace %s (total: %d)",
-		policyID, namespace, metrics.totalViolations)
+	// Update per-deployment metrics
+	deplMetrics, exists := metrics.deploymentViolations[deploymentID]
+	if !exists {
+		// Check if we need to evict an old deployment to stay under limit
+		if len(metrics.deploymentViolations) >= maxDeploymentViolationsTracked {
+			m.evictOldestDeployment(metrics)
+		}
+
+		deplMetrics = &deploymentViolationMetrics{
+			deploymentID:   deploymentID,
+			deploymentName: deploymentName,
+			namespace:      namespace,
+		}
+		metrics.deploymentViolations[deploymentID] = deplMetrics
+	}
+
+	deplMetrics.violationCount++
+	deplMetrics.lastViolationTime = timestamp
+
+	log.Debugf("Recorded violation for local policy %s in deployment %s/%s (total: %d, deployment: %d)",
+		policyID, namespace, deploymentName, metrics.totalViolations, deplMetrics.violationCount)
+}
+
+// evictOldestDeployment removes the deployment with the oldest lastViolationTime
+// to keep the tracked deployments under maxDeploymentViolationsTracked
+func (m *Manager) evictOldestDeployment(metrics *violationMetrics) {
+	var oldestID string
+	var oldestTime time.Time
+
+	for id, deplMetrics := range metrics.deploymentViolations {
+		if oldestID == "" || deplMetrics.lastViolationTime.Before(oldestTime) {
+			oldestID = id
+			oldestTime = deplMetrics.lastViolationTime
+		}
+	}
+
+	if oldestID != "" {
+		evictedDepl := metrics.deploymentViolations[oldestID]
+		delete(metrics.deploymentViolations, oldestID)
+		log.Infof("Evicted deployment %s/%s from violation tracking (limit: %d, last violation: %s)",
+			evictedDepl.namespace, evictedDepl.deploymentName,
+			maxDeploymentViolationsTracked, evictedDepl.lastViolationTime)
+	}
 }
 
 // Start begins watching StackroxPolicy and ClusterStackroxPolicy CRs
@@ -799,6 +858,122 @@ func (m *Manager) flushViolationMetrics() {
 	}
 }
 
+// buildDeploymentViolationsMap merges existing and new per-deployment violations
+// Returns a map of deploymentID -> violation data for easier manipulation
+func (m *Manager) buildDeploymentViolationsMap(existingMetrics map[string]interface{},
+	newMetrics *violationMetrics, isClusterScoped bool) map[string]map[string]interface{} {
+
+	deploymentViolationsMap := make(map[string]map[string]interface{})
+
+	// Start with existing deployment violations from CRD status
+	if existingDeployments, ok := existingMetrics["deploymentViolations"].([]interface{}); ok {
+		for _, deplInterface := range existingDeployments {
+			if deplMap, ok := deplInterface.(map[string]interface{}); ok {
+				// Extract deployment reference
+				if deplRef, ok := deplMap["deploymentRef"].(map[string]interface{}); ok {
+					name, _ := deplRef["name"].(string)
+					namespace := ""
+					if ns, ok := deplRef["namespace"].(string); ok {
+						namespace = ns
+					}
+
+					// Create unique key (name for namespace-scoped, namespace/name for cluster-scoped)
+					key := name
+					if isClusterScoped && namespace != "" {
+						key = namespace + "/" + name
+					}
+
+					deploymentViolationsMap[key] = deplMap
+				}
+			}
+		}
+	}
+
+	// Merge new deployment violations
+	for _, deplMetrics := range newMetrics.deploymentViolations {
+		// Create unique key
+		key := deplMetrics.deploymentName
+		if isClusterScoped && deplMetrics.namespace != "" {
+			key = deplMetrics.namespace + "/" + deplMetrics.deploymentName
+		}
+
+		existing, exists := deploymentViolationsMap[key]
+		if exists {
+			// Accumulate violation count
+			existingCount := int32(0)
+			if count, ok := existing["violationCount"].(int64); ok {
+				existingCount = int32(count)
+			}
+			existing["violationCount"] = int64(existingCount + deplMetrics.violationCount)
+			existing["lastTriggered"] = deplMetrics.lastViolationTime.Format(time.RFC3339)
+		} else {
+			// Create new entry
+			deplRef := map[string]interface{}{
+				"name": deplMetrics.deploymentName,
+			}
+			if isClusterScoped && deplMetrics.namespace != "" {
+				deplRef["namespace"] = deplMetrics.namespace
+			}
+
+			deploymentViolationsMap[key] = map[string]interface{}{
+				"deploymentRef":  deplRef,
+				"violationCount": int64(deplMetrics.violationCount),
+				"lastTriggered":  deplMetrics.lastViolationTime.Format(time.RFC3339),
+			}
+		}
+	}
+
+	return deploymentViolationsMap
+}
+
+// sortAndLimitDeploymentViolations converts map to sorted slice and enforces limit
+// Returns deployments sorted by lastTriggered (most recent first), limited to maxDeploymentViolationsTracked
+func (m *Manager) sortAndLimitDeploymentViolations(deploymentsMap map[string]map[string]interface{}) []interface{} {
+	// Convert map to slice for sorting
+	type deploymentEntry struct {
+		key           string
+		data          map[string]interface{}
+		lastTriggered time.Time
+	}
+
+	entries := make([]deploymentEntry, 0, len(deploymentsMap))
+	for key, data := range deploymentsMap {
+		lastTriggered := time.Time{}
+		if lastTriggeredStr, ok := data["lastTriggered"].(string); ok {
+			if parsed, err := time.Parse(time.RFC3339, lastTriggeredStr); err == nil {
+				lastTriggered = parsed
+			}
+		}
+
+		entries = append(entries, deploymentEntry{
+			key:           key,
+			data:          data,
+			lastTriggered: lastTriggered,
+		})
+	}
+
+	// Sort by lastTriggered descending (most recent first)
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].lastTriggered.After(entries[j].lastTriggered)
+	})
+
+	// Apply limit
+	limit := maxDeploymentViolationsTracked
+	if len(entries) > limit {
+		log.Infof("Limiting deployment violations from %d to %d (keeping most recent)",
+			len(entries), limit)
+		entries = entries[:limit]
+	}
+
+	// Convert to []interface{} for unstructured
+	result := make([]interface{}, len(entries))
+	for i, entry := range entries {
+		result[i] = entry.data
+	}
+
+	return result
+}
+
 // updateViolationMetrics updates a single policy's violation metrics in CRD status
 // Retries on optimistic concurrency conflicts
 func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, ref *policyRef, metrics *violationMetrics) error {
@@ -848,17 +1023,24 @@ func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, r
 			existingMetrics = make(map[string]interface{})
 		}
 
-		// Accumulate metrics (add to existing counts)
+		// Accumulate aggregate metrics (add to existing counts)
 		var totalViolations int32
 		if existing, ok := existingMetrics["totalViolations"].(int64); ok {
 			totalViolations = int32(existing)
 		}
 		totalViolations += metrics.totalViolations
 
+		// Build per-deployment violations array
+		deploymentViolationsMap := m.buildDeploymentViolationsMap(existingMetrics, metrics, ref.isClusterScoped)
+
+		// Convert map to sorted slice (by last triggered, most recent first)
+		deploymentViolations := m.sortAndLimitDeploymentViolations(deploymentViolationsMap)
+
 		// Update violation metrics
 		violationMetrics := map[string]interface{}{
-			"totalViolations":   int64(totalViolations),
-			"lastViolationTime": metrics.lastViolationTime.Format(time.RFC3339),
+			"totalViolations":      int64(totalViolations),
+			"lastViolationTime":    metrics.lastViolationTime.Format(time.RFC3339),
+			"deploymentViolations": deploymentViolations,
 		}
 
 		// Update status
@@ -889,8 +1071,8 @@ func (m *Manager) updateViolationMetrics(ctx context.Context, policyID string, r
 		}
 
 		// Success!
-		log.Infof("Updated violation metrics for policy %s (total: %d, new: %d)",
-			policyID, totalViolations, metrics.totalViolations)
+		log.Infof("Updated violation metrics for policy %s (total: %d, new: %d, deployments: %d)",
+			policyID, totalViolations, metrics.totalViolations, len(deploymentViolations))
 		return nil
 	}
 
