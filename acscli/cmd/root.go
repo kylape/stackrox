@@ -1,5 +1,7 @@
 package cmd
 
+//go:generate go run ../tools/generate -verbose
+
 import (
 	"encoding/json"
 	"fmt"
@@ -7,6 +9,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/stackrox/rox/acscli/generated"
 	"github.com/stackrox/rox/acscli/internal/output"
 )
 
@@ -115,6 +118,9 @@ func init() {
 	// Add subcommands
 	rootCmd.AddCommand(newVersionCmd())
 	rootCmd.AddCommand(newSchemaCmd())
+
+	// Register generated API commands
+	generated.RegisterCommands(rootCmd)
 }
 
 // isTerminal checks if the given writer is a terminal
