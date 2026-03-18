@@ -9,6 +9,7 @@ import (
 
 	"github.com/stackrox/rox/compliance/node/index"
 	"github.com/stackrox/rox/compliance/virtualmachines/roxagent/common"
+	"github.com/stackrox/rox/compliance/virtualmachines/roxagent/data"
 	"github.com/stackrox/rox/compliance/virtualmachines/roxagent/vsock"
 	v4 "github.com/stackrox/rox/generated/internalapi/scanner/v4"
 	"github.com/stackrox/rox/pkg/httputil/proxy"
@@ -60,6 +61,13 @@ func RunSingle(ctx context.Context, cfg *common.Config, client *vsock.Client) er
 }
 
 func runIndexer(ctx context.Context, cfg *common.Config) (*v4.IndexReport, error) {
+	// Write embedded fallback CPE mapping to a temp file.
+	// ClairCore will use this as initial data and update from URL if available.
+	fallbackFile, err := data.WriteFallbackFile()
+	if err != nil {
+		log.Warnf("Failed to write fallback CPE mapping: %v", err)
+	}
+
 	indexerCfg := index.NodeIndexerConfig{
 		HostPath: cfg.IndexHostPath,
 		// Client used to fetch the repo to cpe mapping json.
@@ -68,7 +76,10 @@ func runIndexer(ctx context.Context, cfg *common.Config) (*v4.IndexReport, error
 		// In ACS, we fetch it internally from the cluster (to prevent Collector from accessing the Internet):
 		// "https://sensor.stackrox.svc:443/scanner/definitions?file=repo2cpe"
 		Repo2CPEMappingURL: cfg.RepoToCPEMappingURL,
-		Timeout:            mappingClientTimeout,
+		// Embedded fallback file for disconnected mode.
+		// If URL is also provided, file is loaded initially and updated from URL.
+		Repo2CPEMappingFile: fallbackFile,
+		Timeout:             mappingClientTimeout,
 		// Disable package filtering.
 		PackageDBFilter: "",
 	}

@@ -1,0 +1,11 @@
+# Minimal roxagent image using scratch base
+# roxagent is statically linked, so no dependencies needed
+
+FROM scratch
+
+# Copy the statically linked binary
+COPY roxagent /stackrox/bin/roxagent
+
+# Set entrypoint
+ENTRYPOINT ["/stackrox/bin/roxagent"]
+CMD ["--host-path", "/host"]

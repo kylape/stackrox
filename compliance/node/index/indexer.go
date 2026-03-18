@@ -109,6 +109,10 @@ type NodeIndexerConfig struct {
 	// Repo2CPEMappingURL can be used to fetch the repo mapping file.
 	// Consulting the mapping file is preferred over the Container API.
 	Repo2CPEMappingURL string
+	// Repo2CPEMappingFile, if specified, is used as a local fallback for the mapping.
+	// If both URL and File are provided, the file is loaded initially and
+	// updated periodically from the URL.
+	Repo2CPEMappingFile string
 	// Timeout controls the timeout for any remote API calls.
 	Timeout time.Duration
 	// PackageDBFilter removes irrelevant packages. For node scanning, we are
@@ -176,7 +180,12 @@ func (l *localNodeIndexer) IndexNode(ctx context.Context) (*v4.IndexReport, erro
 		return nil, errors.Wrap(err, "failed to run package scanner")
 	}
 
-	ccReport, err := runCoalescer(ctx, ccLayerDigest, repos, pkgs)
+	dists, err := runDistributionScanner(ctx, layer)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to run distribution scanner")
+	}
+
+	ccReport, err := runCoalescer(ctx, ccLayerDigest, repos, pkgs, dists)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to coalesce report")
 	}
@@ -220,9 +229,10 @@ func runRepositoryScanner(ctx context.Context, cfg NodeIndexerConfig, l *clairco
 	config := rhel.RepositoryScannerConfig{
 		// Do not reach out to the Red Hat Container Catalog API.
 		// We do *not* want to reach out to the internet for node scanning.
-		DisableAPI:         true,
-		Repo2CPEMappingURL: cfg.Repo2CPEMappingURL,
-		Timeout:            cfg.Timeout,
+		DisableAPI:          true,
+		Repo2CPEMappingURL:  cfg.Repo2CPEMappingURL,
+		Repo2CPEMappingFile: cfg.Repo2CPEMappingFile,
+		Timeout:             cfg.Timeout,
 	}
 
 	var buf bytes.Buffer
@@ -267,11 +277,24 @@ func runPackageScanner(ctx context.Context, packageDBFilter string, layer *clair
 	return filtered, nil
 }
 
-func runCoalescer(ctx context.Context, layerDigest claircore.Digest, repos []*claircore.Repository, pkgs []*claircore.Package) (*claircore.IndexReport, error) {
+func runDistributionScanner(ctx context.Context, layer *claircore.Layer) ([]*claircore.Distribution, error) {
+	scanner := rhel.DistributionScanner{}
+	dists, err := scanner.Scan(ctx, layer)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to scan distributions")
+	}
+	for i, d := range dists {
+		d.ID = strconv.Itoa(i)
+	}
+	return dists, nil
+}
+
+func runCoalescer(ctx context.Context, layerDigest claircore.Digest, repos []*claircore.Repository, pkgs []*claircore.Package, dists []*claircore.Distribution) (*claircore.IndexReport, error) {
 	la := &ccindexer.LayerArtifacts{
 		Hash:  layerDigest,
 		Repos: repos,
 		Pkgs:  pkgs,
+		Dist:  dists,
 	}
 	artifacts := []*ccindexer.LayerArtifacts{la}
 
