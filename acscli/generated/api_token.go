@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/rox/acscli/internal/client"
+	"github.com/stackrox/rox/acscli/internal/fieldmask"
 )
 
 // NewApiTokenCmd creates the api_token service command
@@ -39,6 +40,7 @@ func newApiTokenGetapitokenCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -89,6 +91,14 @@ func newApiTokenGetapitokenCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -109,6 +119,7 @@ func newApiTokenGetapitokenCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -119,6 +130,7 @@ func newApiTokenGetapitokensCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -171,6 +183,14 @@ func newApiTokenGetapitokensCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -189,6 +209,7 @@ func newApiTokenGetapitokensCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -197,6 +218,7 @@ func newApiTokenListallowedtokenrolesCmd() *cobra.Command {
 	var (
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -245,6 +267,14 @@ func newApiTokenListallowedtokenrolesCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -261,6 +291,7 @@ func newApiTokenListallowedtokenrolesCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -271,6 +302,7 @@ func newApiTokenPatchrevoketokenCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -321,6 +353,14 @@ func newApiTokenPatchrevoketokenCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -341,6 +381,7 @@ func newApiTokenPatchrevoketokenCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -351,6 +392,7 @@ func newApiTokenPostgeneratetokenCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -419,6 +461,14 @@ func newApiTokenPostgeneratetokenCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -437,6 +487,7 @@ func newApiTokenPostgeneratetokenCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/rox/acscli/internal/client"
+	"github.com/stackrox/rox/acscli/internal/fieldmask"
 )
 
 // NewClusterCmd creates the cluster service command
@@ -43,6 +44,7 @@ func newClusterDeleteclusterCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -93,6 +95,14 @@ func newClusterDeleteclusterCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -113,6 +123,7 @@ func newClusterDeleteclusterCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -123,6 +134,7 @@ func newClusterGetclusterCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -173,6 +185,14 @@ func newClusterGetclusterCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -193,6 +213,7 @@ func newClusterGetclusterCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -201,6 +222,7 @@ func newClusterGetclusterdefaultvaluesCmd() *cobra.Command {
 	var (
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -249,6 +271,14 @@ func newClusterGetclusterdefaultvaluesCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -265,6 +295,7 @@ func newClusterGetclusterdefaultvaluesCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -275,6 +306,7 @@ func newClusterGetclustersCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -327,6 +359,14 @@ func newClusterGetclustersCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -345,6 +385,7 @@ func newClusterGetclustersCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -353,6 +394,7 @@ func newClusterGetkernelsupportavailableCmd() *cobra.Command {
 	var (
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -401,6 +443,14 @@ func newClusterGetkernelsupportavailableCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -417,6 +467,7 @@ func newClusterGetkernelsupportavailableCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -427,6 +478,7 @@ func newClusterPostclusterCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -495,6 +547,14 @@ func newClusterPostclusterCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -513,6 +573,7 @@ func newClusterPostclusterCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -525,6 +586,7 @@ func newClusterPutclusterCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -595,6 +657,14 @@ func newClusterPutclusterCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -617,6 +687,7 @@ func newClusterPutclusterCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/rox/acscli/internal/client"
+	"github.com/stackrox/rox/acscli/internal/fieldmask"
 )
 
 // NewReportConfigurationCmd creates the report_configuration service command
@@ -53,6 +54,7 @@ func newReportConfigurationCountreportconfigurationsCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -129,6 +131,14 @@ func newReportConfigurationCountreportconfigurationsCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -159,6 +169,7 @@ func newReportConfigurationCountreportconfigurationsCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -169,6 +180,7 @@ func newReportConfigurationDeletereportconfigurationCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -219,6 +231,14 @@ func newReportConfigurationDeletereportconfigurationCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -239,6 +259,7 @@ func newReportConfigurationDeletereportconfigurationCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -249,6 +270,7 @@ func newReportConfigurationGetreportconfigurationCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -299,6 +321,14 @@ func newReportConfigurationGetreportconfigurationCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -319,6 +349,7 @@ func newReportConfigurationGetreportconfigurationCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -341,6 +372,7 @@ func newReportConfigurationGetreportconfigurationsCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -417,6 +449,14 @@ func newReportConfigurationGetreportconfigurationsCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -447,6 +487,7 @@ func newReportConfigurationGetreportconfigurationsCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -457,6 +498,7 @@ func newReportConfigurationPostreportconfigurationCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -525,6 +567,14 @@ func newReportConfigurationPostreportconfigurationCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -543,6 +593,7 @@ func newReportConfigurationPostreportconfigurationCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -555,6 +606,7 @@ func newReportConfigurationUpdatereportconfigurationCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -625,6 +677,14 @@ func newReportConfigurationUpdatereportconfigurationCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -647,6 +707,7 @@ func newReportConfigurationUpdatereportconfigurationCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stackrox/rox/acscli/internal/client"
+	"github.com/stackrox/rox/acscli/internal/fieldmask"
 )
 
 // NewNetworkPolicyCmd creates the network_policy service command
@@ -67,6 +68,7 @@ func newNetworkPolicyGeneratenetworkpoliciesCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -133,6 +135,14 @@ func newNetworkPolicyGeneratenetworkpoliciesCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -161,6 +171,7 @@ func newNetworkPolicyGeneratenetworkpoliciesCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -171,6 +182,7 @@ func newNetworkPolicyGetallowedpeersfromcurrentpolicyfordeploymentCmd() *cobra.C
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -221,6 +233,14 @@ func newNetworkPolicyGetallowedpeersfromcurrentpolicyfordeploymentCmd() *cobra.C
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -241,6 +261,7 @@ func newNetworkPolicyGetallowedpeersfromcurrentpolicyfordeploymentCmd() *cobra.C
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -251,6 +272,7 @@ func newNetworkPolicyGetdiffflowsbetweenpolicyandbaselinefordeploymentCmd() *cob
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -301,6 +323,14 @@ func newNetworkPolicyGetdiffflowsbetweenpolicyandbaselinefordeploymentCmd() *cob
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -321,6 +351,7 @@ func newNetworkPolicyGetdiffflowsbetweenpolicyandbaselinefordeploymentCmd() *cob
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -331,6 +362,7 @@ func newNetworkPolicyGetdiffflowsfromundomodificationfordeploymentCmd() *cobra.C
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -381,6 +413,14 @@ func newNetworkPolicyGetdiffflowsfromundomodificationfordeploymentCmd() *cobra.C
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -401,6 +441,7 @@ func newNetworkPolicyGetdiffflowsfromundomodificationfordeploymentCmd() *cobra.C
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -417,6 +458,7 @@ func newNetworkPolicyGetnetworkgraphCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -479,6 +521,14 @@ func newNetworkPolicyGetnetworkgraphCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -505,6 +555,7 @@ func newNetworkPolicyGetnetworkgraphCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -515,6 +566,7 @@ func newNetworkPolicyGetnetworkgraphepochCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -567,6 +619,14 @@ func newNetworkPolicyGetnetworkgraphepochCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -585,6 +645,7 @@ func newNetworkPolicyGetnetworkgraphepochCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -599,6 +660,7 @@ func newNetworkPolicyGetnetworkpoliciesCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -659,6 +721,14 @@ func newNetworkPolicyGetnetworkpoliciesCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -681,6 +751,7 @@ func newNetworkPolicyGetnetworkpoliciesCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -691,6 +762,7 @@ func newNetworkPolicyGetnetworkpolicyCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -741,6 +813,14 @@ func newNetworkPolicyGetnetworkpolicyCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -761,6 +841,7 @@ func newNetworkPolicyGetnetworkpolicyCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -771,6 +852,7 @@ func newNetworkPolicyGetundomodificationCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -821,6 +903,14 @@ func newNetworkPolicyGetundomodificationCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -841,6 +931,7 @@ func newNetworkPolicyGetundomodificationCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -851,6 +942,7 @@ func newNetworkPolicyGetundomodificationfordeploymentCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -901,6 +993,14 @@ func newNetworkPolicyGetundomodificationfordeploymentCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -921,6 +1021,7 @@ func newNetworkPolicyGetundomodificationfordeploymentCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -933,6 +1034,7 @@ func newNetworkPolicyPostapplynetworkpolicyCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -1003,6 +1105,14 @@ func newNetworkPolicyPostapplynetworkpolicyCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -1025,6 +1135,7 @@ func newNetworkPolicyPostapplynetworkpolicyCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -1037,6 +1148,7 @@ func newNetworkPolicyPostapplynetworkpolicyyamlfordeploymentCmd() *cobra.Command
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -1107,6 +1219,14 @@ func newNetworkPolicyPostapplynetworkpolicyyamlfordeploymentCmd() *cobra.Command
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -1129,6 +1249,7 @@ func newNetworkPolicyPostapplynetworkpolicyyamlfordeploymentCmd() *cobra.Command
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -1141,6 +1262,7 @@ func newNetworkPolicyPostgetbaselinegeneratednetworkpolicyfordeploymentCmd() *co
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -1211,6 +1333,14 @@ func newNetworkPolicyPostgetbaselinegeneratednetworkpolicyfordeploymentCmd() *co
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -1233,6 +1363,7 @@ func newNetworkPolicyPostgetbaselinegeneratednetworkpolicyfordeploymentCmd() *co
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -1245,6 +1376,7 @@ func newNetworkPolicyPostsendnetworkpolicyyamlCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -1315,6 +1447,14 @@ func newNetworkPolicyPostsendnetworkpolicyyamlCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -1337,6 +1477,7 @@ func newNetworkPolicyPostsendnetworkpolicyyamlCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
@@ -1357,6 +1498,7 @@ func newNetworkPolicyPostsimulatenetworkgraphCmd() *cobra.Command {
 
 		dryRun    bool
 		outputFmt string
+		fields    string
 	)
 
 	cmd := &cobra.Command{
@@ -1443,6 +1585,14 @@ func newNetworkPolicyPostsimulatenetworkgraphCmd() *cobra.Command {
 				return err
 			}
 
+			// Apply field mask if specified
+			if fields != "" {
+				resp, err = fieldmask.Apply(resp, fields)
+				if err != nil {
+					return fmt.Errorf("failed to apply field mask: %w", err)
+				}
+			}
+
 			// Parse and output response
 			var result interface{}
 			if err := json.Unmarshal(resp, &result); err != nil {
@@ -1473,6 +1623,7 @@ func newNetworkPolicyPostsimulatenetworkgraphCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview request without executing")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Output format: json, table (default: auto)")
+	cmd.Flags().StringVar(&fields, "fields", "", "Comma-separated fields to include (e.g., id,name,policies[].severity)")
 
 	return cmd
 }
