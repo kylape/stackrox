@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/stackrox/rox/acscli/cmd/skills"
 	"github.com/stackrox/rox/acscli/generated"
 	"github.com/stackrox/rox/acscli/internal/output"
 )
@@ -121,6 +122,9 @@ func init() {
 
 	// Register generated API commands
 	generated.RegisterCommands(rootCmd)
+
+	// Register workflow skills (+commands)
+	skills.RegisterSkills(rootCmd)
 }
 
 // isTerminal checks if the given writer is a terminal

@@ -152,16 +152,97 @@ The schema response includes:
 
 ## Workflow Skills
 
-These commands combine multiple API calls:
+These commands combine multiple API calls into common workflows. Skills are prefixed with `+` to distinguish them from raw API commands.
 
 | Skill | Description |
 |-------|-------------|
 | `+check-image` | Scan image + check policies + summarize |
-| `+deploy-sensor` | Generate bundle + deploy + wait |
-| `+compliance-report` | Run checks + format report |
-| `+policy-export` | Export policies as files |
+| `+policy-export` | Export policies to files (JSON/YAML) |
+| `+policy-import` | Import policies from files |
+| `+compliance-report` | Generate compliance status report |
 
-Skills are prefixed with `+` to distinguish from raw API commands.
+### +check-image
+
+Comprehensive security assessment of a container image.
+
+```bash
+# Basic check
+acs +check-image nginx:latest
+
+# With JSON output for parsing
+acs +check-image quay.io/myorg/app:v1.2.3 --output json
+
+# Skip policy check (scan only)
+acs +check-image alpine:3.18 --no-policy
+
+# Preview what would happen
+acs +check-image nginx:latest --dry-run
+```
+
+Returns:
+* Pass/fail status based on policy violations
+* CVE counts by severity (critical, high, medium, low)
+* List of policy violations with severity
+
+### +policy-export
+
+Export policies to local files for GitOps or version control.
+
+```bash
+# Export all policies
+acs +policy-export --dir ./policies
+
+# Export only critical policies
+acs +policy-export --dir ./policies --query "Severity:CRITICAL"
+
+# Export as YAML
+acs +policy-export --dir ./policies --format yaml
+
+# Include system/default policies
+acs +policy-export --dir ./policies --include-system
+```
+
+### +policy-import
+
+Import policies from local files.
+
+```bash
+# Import all policies from directory
+acs +policy-import --dir ./policies
+
+# Import a single file
+acs +policy-import --file my-policy.yaml
+
+# Update existing policies (instead of skipping)
+acs +policy-import --dir ./policies --update
+
+# Preview what would be imported
+acs +policy-import --dir ./policies --dry-run
+```
+
+### +compliance-report
+
+Generate compliance status reports.
+
+```bash
+# Report on all standards
+acs +compliance-report
+
+# Report for specific standard
+acs +compliance-report --standard PCI_DSS
+
+# Report for specific cluster
+acs +compliance-report --cluster my-cluster
+
+# Detailed report with control results
+acs +compliance-report --standard HIPAA --verbose
+```
+
+Returns:
+* Overall pass/fail/partial status
+* Pass rate percentage
+* Per-standard breakdown
+* Per-control results (with --verbose)
 
 ## Best Practices
 
