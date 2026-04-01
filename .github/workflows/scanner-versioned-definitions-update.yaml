@@ -270,6 +270,20 @@ jobs:
                 scanner/bin/updater export --manual-url "${{ needs.prepare-environment.outputs.manual_url }}" bundles
                 ;;
         esac
+
+    - name: Upload individual bundles to GCS
+      if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'false')
+      run: |
+        # Upload successful bundles to GCS bundles/ subfolder (preserves last-known-good)
+        bucket="gs://definitions.stackrox.io/v4/vulnerability-bundles/$SCANNER_BUNDLE_VERSION/bundles"
+        echo "Uploading individual bundles to $bucket/"
+        gsutil -m cp bundles/*.json.zst "$bucket/"
+        if [ -f bundles/status.json ]; then
+          gsutil cp bundles/status.json "$bucket/"
+        fi
+
+    - name: Create local zip for artifact
+      run: |
         zip definitions/"$SCANNER_BUNDLE_VERSION"/vulnerabilities.zip bundles/*.json.zst
 
     - name: Upload definitions artifacts
@@ -440,11 +454,39 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v3
 
-    - name: Upload vulnerability bundles to GCS
+    - name: Aggregate bundles from GCS and upload final zip
       working-directory: ./definitions_files
       run: |
-        # Upload all bundle directories (preserving the `<verions>/<file>` structure).
         bucket="gs://definitions.stackrox.io/v4/vulnerability-bundles"
+
+        # For each version directory, download ALL bundles from GCS bundles/ subfolder
+        # This includes previous successful bundles if current run had partial failures
+        shopt -s dotglob
+        for version_dir in */; do
+          version="${version_dir%/}"
+          echo "Processing version: $version"
+
+          # Download all bundles from GCS (includes last-known-good for failed updaters)
+          gcs_bundles="$bucket/$version/bundles"
+          if gsutil -q stat "$gcs_bundles/*.json.zst" 2>/dev/null; then
+            echo "Downloading bundles from $gcs_bundles/"
+            mkdir -p "$version/gcs_bundles"
+            gsutil -m cp "$gcs_bundles/*.json.zst" "$version/gcs_bundles/" || true
+
+            # Create final zip from GCS bundles (includes last-known-good)
+            if ls "$version/gcs_bundles/"*.json.zst 1>/dev/null 2>&1; then
+              echo "Creating vulnerabilities.zip from GCS bundles"
+              cd "$version/gcs_bundles"
+              zip -q ../vulnerabilities.zip *.json.zst
+              cd ../..
+              rm -rf "$version/gcs_bundles"
+            fi
+          else
+            echo "No bundles in GCS yet for $version, using local zip"
+          fi
+        done
+
+        # Upload all bundle directories (preserving the `<version>/<file>` structure).
         echo "Uploading all dir(s) to $bucket/"
         gsutil -m cp -r . "$bucket/"
 
@@ -492,8 +534,44 @@ jobs:
     - build-and-run
     - upload-definitions
     runs-on: ubuntu-latest
-    if: ${{ failure() && github.ref_name == 'master' && (github.event_name == 'schedule' || github.event.inputs.dry_run == 'false') }}
+    if: ${{ always() && github.ref_name == 'master' && (github.event_name == 'schedule' || github.event.inputs.dry_run == 'false') }}
     steps:
-    - name: Send Slack notification on workflow failure
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v3
+      with:
+        credentials_json: ${{ secrets.GOOGLE_SA_STACKROX_HUB_VULN_DUMP_UPLOADER }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v3
+
+    - name: Check for partial failures and notify
       run: |
-        curl -X POST -H 'Content-type: application/json' --data '{"text":"<${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}|Workflow ${{ github.workflow }}> failed in repository ${{ github.repository }}: Failed to update vulnerabilities"}' ${{ secrets.SLACK_ONCALL_SCANNER_WEBHOOK }}
+        # Check status.json for each version stream
+        bucket="gs://definitions.stackrox.io/v4/vulnerability-bundles"
+        has_failures=false
+        failure_details=""
+
+        for version in dev v2 v3; do
+          status_url="$bucket/$version/bundles/status.json"
+          if gsutil -q stat "$status_url" 2>/dev/null; then
+            gsutil cp "$status_url" "/tmp/status-$version.json"
+            failed_count=$(jq '[.updaters[] | select(.status=="failed")] | length' "/tmp/status-$version.json")
+            if [ "$failed_count" -gt 0 ]; then
+              has_failures=true
+              failed_names=$(jq -r '[.updaters[] | select(.status=="failed") | .name] | join(", ")' "/tmp/status-$version.json")
+              failure_details="$failure_details\n$version: $failed_names"
+            fi
+          fi
+        done
+
+        # Send notification if there were failures or if the workflow itself failed
+        if [ "$has_failures" = true ] || [ "${{ needs.build-and-run.result }}" = "failure" ]; then
+          if [ "$has_failures" = true ]; then
+            message="Vulnerability update completed with partial failures:$failure_details\n\nSee <${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}|workflow run> for details."
+          else
+            message="<${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}|Workflow ${{ github.workflow }}> failed in repository ${{ github.repository }}: Failed to update vulnerabilities"
+          fi
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"$message\"}" \
+            ${{ secrets.SLACK_ONCALL_SCANNER_WEBHOOK }}
+        fi
