@@ -2,6 +2,7 @@ package updater
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -27,6 +28,51 @@ import (
 	// Default updaters. This is required to ensure updater factories are set properly.
 	_ "github.com/quay/claircore/updater/defaults"
 )
+
+// UpdaterStatus represents the result of a single updater execution.
+type UpdaterStatus struct {
+	Name        string    `json:"name"`
+	Status      string    `json:"status"` // "success" or "failed"
+	Error       string    `json:"error,omitempty"`
+	LastAttempt time.Time `json:"last_attempt"`
+}
+
+// ExportStatus contains the results of all updater executions.
+type ExportStatus struct {
+	Updaters []UpdaterStatus `json:"updaters"`
+}
+
+// HasFailures returns true if any updater failed.
+func (s *ExportStatus) HasFailures() bool {
+	for _, u := range s.Updaters {
+		if u.Status == "failed" {
+			return true
+		}
+	}
+	return false
+}
+
+// SuccessCount returns the number of successful updaters.
+func (s *ExportStatus) SuccessCount() int {
+	count := 0
+	for _, u := range s.Updaters {
+		if u.Status == "success" {
+			count++
+		}
+	}
+	return count
+}
+
+// FailureCount returns the number of failed updaters.
+func (s *ExportStatus) FailureCount() int {
+	count := 0
+	for _, u := range s.Updaters {
+		if u.Status == "failed" {
+			count++
+		}
+	}
+	return count
+}
 
 const (
 	rhelVexUpdaterName = "rhel-vex"
@@ -54,10 +100,14 @@ type ExportOptions struct {
 // Export is responsible for triggering the updaters to download Common Vulnerabilities and Exposures (CVEs) data.
 // Depending on the export option, this will output either a single zstd file called vulns.json.zst
 // or several zstd files all written to the given outputDir.
-func Export(ctx context.Context, outputDir string, opts *ExportOptions) error {
+//
+// Export now supports partial failure tolerance: if some updaters fail, the successful ones
+// are still written and a status.json file is created with all results. An error is only
+// returned if ALL updaters fail.
+func Export(ctx context.Context, outputDir string, opts *ExportOptions) (*ExportStatus, error) {
 	err := os.MkdirAll(outputDir, 0700)
 	if err != nil {
-		return fmt.Errorf("creating output dir: %w", err)
+		return nil, fmt.Errorf("creating output dir: %w", err)
 	}
 
 	// Map of vulnerability bundles to their updater options.
@@ -66,7 +116,7 @@ func Export(ctx context.Context, outputDir string, opts *ExportOptions) error {
 	// Our own updaters.
 	bundles["manual"], err = manualOpts(ctx, opts.ManualVulnURL)
 	if err != nil {
-		return fmt.Errorf("initializing: manual: %w", err)
+		return nil, fmt.Errorf("initializing: manual: %w", err)
 	}
 	bundles["nvd"] = nvdOpts()
 	bundles["epss"] = epssOpts()
@@ -104,25 +154,89 @@ func Export(ctx context.Context, outputDir string, opts *ExportOptions) error {
 		},
 	}
 
-	// Export to bundle(s).
+	// Export to bundle(s) with partial failure tolerance.
+	var status ExportStatus
 	for name, o := range bundles {
-		ctx = zlog.ContextWithValues(ctx, "bundle", name)
-		w, err := zstdWriter(filepath.Join(outputDir, fmt.Sprintf("%s.json.zst", name)))
+		bundleCtx := zlog.ContextWithValues(ctx, "bundle", name)
+		bundlePath := filepath.Join(outputDir, fmt.Sprintf("%s.json.zst", name))
+
+		w, err := zstdWriter(bundlePath)
 		if err != nil {
-			return err
+			zlog.Error(bundleCtx).Err(err).Msg("failed to create bundle output file")
+			status.Updaters = append(status.Updaters, UpdaterStatus{
+				Name:        name,
+				Status:      "failed",
+				Error:       fmt.Sprintf("create output file: %v", err),
+				LastAttempt: time.Now(),
+			})
+			continue
 		}
-		err = bundle(ctx, httpClient, w, o)
+
+		err = bundle(bundleCtx, httpClient, w, o)
+		closeErr := w.Close()
+
 		if err != nil {
-			_ = w.Close()
-			return err
+			zlog.Error(bundleCtx).Err(err).Msg("bundle export failed")
+			status.Updaters = append(status.Updaters, UpdaterStatus{
+				Name:        name,
+				Status:      "failed",
+				Error:       err.Error(),
+				LastAttempt: time.Now(),
+			})
+			// Delete the failed bundle file
+			if removeErr := os.Remove(bundlePath); removeErr != nil && !os.IsNotExist(removeErr) {
+				zlog.Warn(bundleCtx).Err(removeErr).Msg("failed to remove failed bundle file")
+			}
+			continue
 		}
-		if err := w.Close(); err != nil {
-			// Fail to close here means the data might not have been written fully, so we
-			// fail.
-			return fmt.Errorf("failed to close bundle output file: %w", err)
+
+		if closeErr != nil {
+			zlog.Error(bundleCtx).Err(closeErr).Msg("failed to close bundle output file")
+			status.Updaters = append(status.Updaters, UpdaterStatus{
+				Name:        name,
+				Status:      "failed",
+				Error:       fmt.Sprintf("close output file: %v", closeErr),
+				LastAttempt: time.Now(),
+			})
+			// Delete the potentially incomplete bundle file
+			if removeErr := os.Remove(bundlePath); removeErr != nil && !os.IsNotExist(removeErr) {
+				zlog.Warn(bundleCtx).Err(removeErr).Msg("failed to remove incomplete bundle file")
+			}
+			continue
 		}
+
+		// Success
+		zlog.Info(bundleCtx).Msg("bundle export completed successfully")
+		status.Updaters = append(status.Updaters, UpdaterStatus{
+			Name:        name,
+			Status:      "success",
+			LastAttempt: time.Now(),
+		})
 	}
 
+	// Write status.json with all results
+	if err := writeStatusFile(outputDir, &status); err != nil {
+		zlog.Warn(ctx).Err(err).Msg("failed to write status.json")
+	}
+
+	// Only return error if ALL bundles failed
+	if status.SuccessCount() == 0 {
+		return &status, fmt.Errorf("all %d updaters failed", len(bundles))
+	}
+
+	return &status, nil
+}
+
+// writeStatusFile writes the export status to a JSON file in the output directory.
+func writeStatusFile(outputDir string, status *ExportStatus) error {
+	statusPath := filepath.Join(outputDir, "status.json")
+	data, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal status: %w", err)
+	}
+	if err := os.WriteFile(statusPath, data, 0644); err != nil {
+		return fmt.Errorf("write status file: %w", err)
+	}
 	return nil
 }
 
