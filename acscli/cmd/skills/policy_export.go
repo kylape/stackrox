@@ -13,12 +13,14 @@ import (
 
 // PolicyExportResult is the result of the +policy-export skill
 type PolicyExportResult struct {
-	Exported int               `json:"exported"`
-	Dir      string            `json:"dir"`
-	Format   string            `json:"format"`
-	Severity map[string]int    `json:"by_severity"`
-	Files    []string          `json:"files,omitempty"`
-	Errors   []string          `json:"errors,omitempty"`
+	Exported      int               `json:"exported"`
+	SkippedSystem int               `json:"skipped_system,omitempty"`
+	Dir           string            `json:"dir"`
+	Format        string            `json:"format"`
+	Severity      map[string]int    `json:"by_severity"`
+	Files         []string          `json:"files,omitempty"`
+	Errors        []string          `json:"errors,omitempty"`
+	Message       string            `json:"message,omitempty"`
 }
 
 // NewPolicyExportCmd creates the +policy-export command
@@ -173,6 +175,7 @@ Examples:
 				// Skip system policies unless includeAll
 				if !includeAll {
 					if isSystem, ok := policy["isDefault"].(bool); ok && isSystem {
+						result.SkippedSystem++
 						continue
 					}
 				}
@@ -201,6 +204,11 @@ Examples:
 				result.Exported++
 			}
 
+			// Add helpful message when no custom policies exported
+			if result.Exported == 0 && result.SkippedSystem > 0 {
+				result.Message = fmt.Sprintf("No custom policies found. %d system policies skipped (use --all to include).", result.SkippedSystem)
+			}
+
 			return outputResult(result, outputFmt)
 		},
 	}
@@ -210,7 +218,7 @@ Examples:
 	cmd.Flags().StringVarP(&query, "query", "q", "", "Filter policies by query (e.g., 'Severity:CRITICAL')")
 	cmd.Flags().StringVarP(&outputFmt, "output", "o", "", "Command output format: json, table (default: auto)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview what would be exported")
-	cmd.Flags().BoolVar(&includeAll, "include-system", false, "Include system/default policies")
+	cmd.Flags().BoolVar(&includeAll, "all", false, "Include system/default policies (by default only custom policies are exported)")
 
 	return cmd
 }

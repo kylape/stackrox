@@ -188,18 +188,22 @@ Returns:
 
 Export policies to local files for GitOps or version control.
 
+By default, only custom policies are exported (system/default policies are skipped).
+This is the recommended behavior for GitOps workflows where system policies are
+managed by the product and custom policies are managed in your repo.
+
 ```bash
-# Export all policies
+# Export custom policies (default)
 acs +policy-export --dir ./policies
+
+# Export ALL policies including system defaults
+acs +policy-export --dir ./policies --all
 
 # Export only critical policies
 acs +policy-export --dir ./policies --query "Severity:CRITICAL"
 
 # Export as YAML
 acs +policy-export --dir ./policies --format yaml
-
-# Include system/default policies
-acs +policy-export --dir ./policies --include-system
 ```
 
 ### +policy-import
